@@ -7,12 +7,17 @@ enum Prefs {
         static let shortBreakMinutes = "shortBreakMinutes"
         static let longBreakMinutes = "longBreakMinutes"
         static let sessionsPerLongBreak = "sessionsPerLongBreak"
+        static let dailyGoalMinutes = "dailyGoalMinutes"
         static let effectsEnabled = "effectsEnabled"
         static let focusOnShortcut = "focusOnShortcut"
         static let focusOffShortcut = "focusOffShortcut"
         static let wallpaperPath = "wallpaperPath"
         static let playSound = "playSound"
+        static let showTimeInMenuBar = "showTimeInMenuBar"
     }
+
+    /// Longest session the dial can be dragged to.
+    static let maxWorkMinutes = 120
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -20,11 +25,13 @@ enum Prefs {
             Key.shortBreakMinutes: 10,
             Key.longBreakMinutes: 20,
             Key.sessionsPerLongBreak: 3,
+            Key.dailyGoalMinutes: 240,
             Key.effectsEnabled: true,
             Key.focusOnShortcut: "Deep Work On",
             Key.focusOffShortcut: "Deep Work Off",
             Key.wallpaperPath: "",
             Key.playSound: true,
+            Key.showTimeInMenuBar: true,
         ])
     }
 
@@ -34,6 +41,7 @@ enum Prefs {
     static var shortBreakMinutes: Int { d.integer(forKey: Key.shortBreakMinutes) }
     static var longBreakMinutes: Int { d.integer(forKey: Key.longBreakMinutes) }
     static var sessionsPerLongBreak: Int { max(1, d.integer(forKey: Key.sessionsPerLongBreak)) }
+    static var dailyGoalMinutes: Int { max(15, d.integer(forKey: Key.dailyGoalMinutes)) }
     static var effectsEnabled: Bool { d.bool(forKey: Key.effectsEnabled) }
     static var focusOnShortcut: String { d.string(forKey: Key.focusOnShortcut) ?? "" }
     static var focusOffShortcut: String { d.string(forKey: Key.focusOffShortcut) ?? "" }

@@ -1,5 +1,4 @@
 import AppKit
-import UserNotifications
 
 enum Phase: String {
     case idle, work, shortBreak, longBreak
@@ -12,13 +11,25 @@ enum Phase: String {
         case .longBreak: "Long break"
         }
     }
+
+    var isBreak: Bool { self == .shortBreak || self == .longBreak }
+}
+
+/// A phase that ended on its own, so the UI can announce it.
+enum Transition {
+    case workDone(breakMinutes: Int, longBreak: Bool)
+    case breakDone(nextSession: Int)
 }
 
 @MainActor
 final class TimerModel: ObservableObject {
+    /// The running instance, for URL-scheme commands handled by the app delegate.
+    static weak var live: TimerModel?
+
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var now = Date()
-    @Published private(set) var today = DailyStats.loadToday()
+    @Published private(set) var today = DailyStats.load()
+    @Published private(set) var week = DailyStats.lastSevenDays()
     /// Completed work sessions since the last long break.
     @Published private(set) var cycleCount = 0
 
@@ -26,15 +37,22 @@ final class TimerModel: ObservableObject {
     // accurate across sleep/wake and doesn't drift.
     @Published private(set) var endDate: Date?
     @Published private(set) var pausedRemaining: TimeInterval?
-    private var phaseDuration: TimeInterval = 1
-    private var workStartedAt: Date?
+    @Published private(set) var phaseDuration: TimeInterval = 1
 
+    @Published var intention = UserDefaults.standard.string(forKey: "lastIntention") ?? "" {
+        didSet { UserDefaults.standard.set(intention, forKey: "lastIntention") }
+    }
+
+    var onTransition: ((Transition) -> Void)?
+
+    private var workStartedAt: Date?
     private var ticker: Task<Void, Never>?
 
-    init() {
+    init(live: Bool = true) {
+        guard live else { return }
+        TimerModel.live = self
         // If we crashed mid-session last time, put the wallpaper and Focus back.
         SessionEffects.shared.revert()
-        requestNotificationPermission()
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
@@ -57,18 +75,21 @@ final class TimerModel: ObservableObject {
         phase == .idle ? 0 : min(1, max(0, 1 - remaining / phaseDuration))
     }
 
-    var displayTime: String {
-        let total = Int(remaining.rounded(.up))
+    var displayTime: String { Self.format(remaining) }
+
+    static func format(_ interval: TimeInterval) -> String {
+        let total = Int(interval.rounded(.up))
         let h = total / 3600, m = (total % 3600) / 60, s = total % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 
-    /// Which session number in the current cycle we're on (1-based).
-    var sessionNumber: Int { cycleCount + (phase == .work ? 1 : 0) }
+    /// Which session in the current cycle we're on (1-based).
+    var sessionNumber: Int { min(cycleCount + 1, Prefs.sessionsPerLongBreak) }
 
     // MARK: Actions
 
-    func startWork() {
+    func startWork(minutes: Int? = nil) {
+        if let minutes { UserDefaults.standard.set(minutes, forKey: Prefs.Key.workMinutes) }
         workStartedAt = Date()
         begin(.work, minutes: Prefs.workMinutes)
         SessionEffects.shared.apply()
@@ -87,6 +108,25 @@ final class TimerModel: ObservableObject {
         now = Date()
     }
 
+    func togglePause() {
+        isPaused ? resume() : pause()
+    }
+
+    /// Lengthen or shorten the running phase. Never drops below one minute left.
+    func adjust(minutes: Int) {
+        guard phase != .idle else { return }
+        let delta = TimeInterval(minutes * 60)
+        let newRemaining = max(60, remaining + delta)
+        let applied = newRemaining - remaining
+        if pausedRemaining != nil {
+            pausedRemaining = newRemaining
+        } else {
+            endDate = Date().addingTimeInterval(newRemaining)
+        }
+        phaseDuration = max(60, phaseDuration + applied)
+        now = Date()
+    }
+
     /// End the current phase early and move to the next one.
     func skip() {
         finishPhase(completed: false)
@@ -95,7 +135,7 @@ final class TimerModel: ObservableObject {
     /// Stop everything and go back to idle.
     func stop() {
         if phase == .work {
-            recordFocusTime()
+            recordFocusTime(completed: false)
             SessionEffects.shared.revert()
         }
         reset()
@@ -120,7 +160,7 @@ final class TimerModel: ObservableObject {
 
     private func tick() {
         now = Date()
-        if today.day != DailyStats.todayKey { today = DailyStats.loadToday() }
+        if today.day != DailyStats.todayKey { reloadStats() }
         if let endDate, now >= endDate {
             finishPhase(completed: true)
         }
@@ -132,77 +172,123 @@ final class TimerModel: ObservableObject {
             return
 
         case .work:
-            recordFocusTime()
+            recordFocusTime(completed: completed)
             SessionEffects.shared.revert()
+            if completed { cycleCount += 1 }
+            let long = cycleCount >= Prefs.sessionsPerLongBreak
+            if long { cycleCount = 0 }
+            let minutes = long ? Prefs.longBreakMinutes : Prefs.shortBreakMinutes
+            begin(long ? .longBreak : .shortBreak, minutes: minutes)
             if completed {
-                today.sessions += 1
-                today.save()
-                cycleCount += 1
-                alert(title: "Session done", body: "Nice work. Time for a break.")
-            }
-            if cycleCount >= Prefs.sessionsPerLongBreak {
-                cycleCount = 0
-                begin(.longBreak, minutes: Prefs.longBreakMinutes)
-            } else {
-                begin(.shortBreak, minutes: Prefs.shortBreakMinutes)
+                playSound("Glass")
+                onTransition?(.workDone(breakMinutes: minutes, longBreak: long))
             }
 
         case .shortBreak, .longBreak:
-            if completed {
-                alert(title: "Break's over", body: "Ready for the next session?")
-            }
             reset()
+            if completed {
+                playSound("Hero")
+                onTransition?(.breakDone(nextSession: sessionNumber))
+            }
         }
     }
 
-    private func recordFocusTime() {
-        guard let start = workStartedAt else { return }
-        // Planned minus remaining excludes paused time; cap at wall-clock time as a sanity check.
-        let elapsed = min(phaseDuration - remaining, Date().timeIntervalSince(start))
-        today.focusSeconds += max(0, elapsed)
-        today.save()
+    private func recordFocusTime(completed: Bool) {
+        guard workStartedAt != nil else { return }
+        // Planned minus remaining excludes paused time.
+        let elapsed = max(0, phaseDuration - remaining)
         workStartedAt = nil
+        guard elapsed >= 60 else { return }
+        today.focusSeconds += elapsed
+        if completed { today.sessions += 1 }
+        today.entries.append(.init(intention: intention, seconds: elapsed, endedAt: Date(), completed: completed))
+        today.save()
+        week = DailyStats.lastSevenDays()
     }
 
-    // MARK: Alerts
-
-    private var notificationsAvailable: Bool { Bundle.main.bundleIdentifier != nil }
-
-    private func requestNotificationPermission() {
-        guard notificationsAvailable else { return }
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    private func reloadStats() {
+        today = DailyStats.load()
+        week = DailyStats.lastSevenDays()
     }
 
-    private func alert(title: String, body: String) {
-        if Prefs.playSound { NSSound(named: "Glass")?.play() }
-        guard notificationsAvailable else { return }
-        let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
-        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request)
+    private func playSound(_ name: String) {
+        if Prefs.playSound { NSSound(named: name)?.play() }
+    }
+
+    // MARK: Previews
+
+    /// A frozen model for rendering snapshots of the UI.
+    static func preview(
+        phase: Phase, remaining: TimeInterval = 0, total: TimeInterval = 3000, paused: Bool = false,
+        cycle: Int = 0, intention: String = "", today: DailyStats, week: [DailyStats]
+    ) -> TimerModel {
+        let model = TimerModel(live: false)
+        model.phase = phase
+        model.phaseDuration = total
+        model.cycleCount = cycle
+        model.intention = intention
+        model.today = today
+        model.week = week
+        if phase != .idle {
+            if paused { model.pausedRemaining = remaining } else { model.endDate = model.now.addingTimeInterval(remaining) }
+        }
+        return model
     }
 }
 
 /// Per-day totals, stored in UserDefaults keyed by date.
-struct DailyStats: Codable {
+struct DailyStats: Codable, Identifiable {
+    struct Entry: Codable, Hashable {
+        var intention: String
+        var seconds: TimeInterval
+        var endedAt: Date
+        var completed: Bool
+    }
+
     var day: String
     var sessions = 0
     var focusSeconds: TimeInterval = 0
+    var entries: [Entry] = []
 
-    static var todayKey: String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: Date())
+    var id: String { day }
+
+    init(day: String, sessions: Int = 0, focusSeconds: TimeInterval = 0, entries: [Entry] = []) {
+        self.day = day
+        self.sessions = sessions
+        self.focusSeconds = focusSeconds
+        self.entries = entries
     }
 
-    static func loadToday() -> DailyStats {
-        let key = todayKey
-        if let data = UserDefaults.standard.data(forKey: "stats.\(key)"),
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        day = try c.decode(String.self, forKey: .day)
+        sessions = try c.decodeIfPresent(Int.self, forKey: .sessions) ?? 0
+        focusSeconds = try c.decodeIfPresent(TimeInterval.self, forKey: .focusSeconds) ?? 0
+        entries = try c.decodeIfPresent([Entry].self, forKey: .entries) ?? []
+    }
+
+    private static let keyFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    static var todayKey: String { keyFormatter.string(from: Date()) }
+
+    static func load(day: String = todayKey) -> DailyStats {
+        if let data = UserDefaults.standard.data(forKey: "stats.\(day)"),
            let stats = try? JSONDecoder().decode(DailyStats.self, from: data) {
             return stats
         }
-        return DailyStats(day: key)
+        return DailyStats(day: day)
+    }
+
+    /// Oldest first, ending with today.
+    static func lastSevenDays() -> [DailyStats] {
+        (0..<7).reversed().map { offset in
+            let date = Calendar.current.date(byAdding: .day, value: -offset, to: Date()) ?? Date()
+            return load(day: keyFormatter.string(from: date))
+        }
     }
 
     func save() {
@@ -211,8 +297,16 @@ struct DailyStats: Codable {
         }
     }
 
-    var focusText: String {
-        let minutes = Int(focusSeconds / 60)
-        return minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes)m"
+    var weekdayInitial: String {
+        guard let date = Self.keyFormatter.date(from: day) else { return "" }
+        let f = DateFormatter()
+        f.dateFormat = "EEEEE"
+        return f.string(from: date)
+    }
+
+    static func durationText(_ seconds: TimeInterval) -> String {
+        let minutes = Int(seconds / 60)
+        if minutes < 60 { return "\(minutes)m" }
+        return minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h \(minutes % 60)m"
     }
 }
