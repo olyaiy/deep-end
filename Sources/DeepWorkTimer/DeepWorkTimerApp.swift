@@ -7,7 +7,7 @@ struct DeepWorkTimerApp: App {
 
     init() {
         Prefs.registerDefaults()
-        Snapshotter.runIfRequested()
+        DesignPreview.snapshotIfRequested()
         let model = TimerModel()
         model.onTransition = { [weak model] transition in
             guard let model else { return }
@@ -28,6 +28,12 @@ struct DeepWorkTimerApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            if DesignPreview.previewRequested { DesignPreview.showWindow() }
+        }
+    }
+
     func application(_ application: NSApplication, open urls: [URL]) {
         MainActor.assumeIsolated {
             urls.forEach(URLCommands.handle)

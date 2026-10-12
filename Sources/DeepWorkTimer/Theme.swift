@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// White and red, modeled on Apple's Clock timer.
+/// White and red, with Liquid Glass controls.
 enum Theme {
     static let red = Color(red: 1.0, green: 0.231, blue: 0.188) // systemRed (light)
-    static let fill = Color.black.opacity(0.055)
-    static let fillHover = Color.black.opacity(0.09)
+    static let redLight = Color(red: 1.0, green: 0.42, blue: 0.36)
+    static let redGradient = LinearGradient(colors: [redLight, red], startPoint: .top, endPoint: .bottom)
+    static let fill = Color.black.opacity(0.05)
     static let track = Color.black.opacity(0.07)
+    static let spring = Animation.spring(response: 0.32, dampingFraction: 0.7)
+    static let morph = Animation.bouncy(duration: 0.45, extraBounce: 0.05)
 }
 
 extension Phase {
@@ -32,122 +35,80 @@ struct Hoverable<Content: View>: View {
     var body: some View {
         content(hover.isHovered)
             .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.12)) { hover.isHovered = hovering }
+                withAnimation(Theme.spring) { hover.isHovered = hovering }
             }
     }
 }
 
-// MARK: Buttons
+// MARK: Glass buttons
 
-/// The round Cancel / Start / Pause buttons from the Clock app: a filled circle
-/// inside a thin ring of the same color.
-struct ClockButtonStyle: ButtonStyle {
-    enum Kind { case primary, tinted, neutral }
-    var kind: Kind
-    var size: CGFloat = 58
-
+/// Shrinks slightly while pressed. Pairs with GlassButton, which handles hover.
+struct PressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        ClockButtonBody(configuration: configuration, kind: kind, size: size)
-    }
-
-    private struct ClockButtonBody: View {
-        let configuration: Configuration
-        let kind: Kind
-        let size: CGFloat
-        @Environment(\.isEnabled) private var isEnabled
-
-        var body: some View {
-            let fill: Color = switch kind {
-            case .primary: Theme.red
-            case .tinted: Theme.red.opacity(0.12)
-            case .neutral: Theme.fill
-            }
-            let foreground: Color = switch kind {
-            case .primary: .white
-            case .tinted: Theme.red
-            case .neutral: .primary
-            }
-            configuration.label
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(foreground)
-                .frame(width: size, height: size)
-                .background(Circle().fill(fill))
-                .padding(3)
-                .overlay(Circle().strokeBorder(fill, lineWidth: 1.5))
-                .contentShape(Circle())
-                .opacity(configuration.isPressed ? 0.6 : 1)
-                .opacity(isEnabled ? 1 : 0.35)
-                .animation(.easeOut(duration: 0.15), value: kind)
-        }
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 
-/// Small capsule buttons for secondary actions (−5 min, Skip…).
-struct PillButtonStyle: ButtonStyle {
-    var tinted = false
+/// A Liquid Glass button. `prominent` tints it red for the primary action.
+/// Give it a `glassID` to morph between layouts inside a GlassEffectContainer.
+struct GlassButton<Label: View>: View {
+    enum Shape { case capsule, circle }
 
-    func makeBody(configuration: Configuration) -> some View {
-        Hoverable { hovered in
-            configuration.label
-                .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(tinted ? Theme.red : Color.primary.opacity(0.75))
-                .padding(.horizontal, 10)
-                .frame(height: 24)
-                .background(Capsule().fill(tinted ? Theme.red.opacity(hovered ? 0.16 : 0.1) : (hovered ? Theme.fillHover : Theme.fill)))
-                .contentShape(Capsule())
-                .opacity(configuration.isPressed ? 0.6 : 1)
-        }
-    }
-}
-
-/// Borderless icon button.
-struct IconButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Hoverable { hovered in
-            configuration.label
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-                .frame(width: 26, height: 26)
-                .background(Circle().fill(hovered ? Theme.fill : .clear))
-                .contentShape(Circle())
-                .opacity(configuration.isPressed ? 0.6 : 1)
-        }
-    }
-}
-
-// MARK: Segmented control
-
-/// An Apple-style segmented control, drawn in SwiftUI.
-struct SegmentedControl<Value: Hashable>: View {
-    let options: [Value]
-    @Binding var selection: Value
-    let title: (Value) -> String
+    var prominent = false
+    var shape: Shape = .capsule
+    var height: CGFloat = 36
+    var horizontalPadding: CGFloat = 16
+    var expands = false
+    var glassID: String?
+    var namespace: Namespace.ID
+    let action: () -> Void
+    @ViewBuilder let label: () -> Label
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(options, id: \.self) { option in
-                let selected = option == selection
-                Button {
-                    withAnimation(.snappy(duration: 0.2)) { selection = option }
-                } label: {
-                    Text(title(option))
-                        .font(.system(size: 12, weight: selected ? .semibold : .regular))
-                        .foregroundStyle(.primary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 22)
-                        .background {
-                            if selected {
-                                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                    .fill(.white)
-                                    .shadow(color: .black.opacity(0.14), radius: 1.5, y: 0.5)
-                            }
-                        }
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+        Button(action: action) {
+            Hoverable { hovered in
+                label()
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(prominent ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, shape == .circle ? 0 : horizontalPadding)
+                    .frame(width: shape == .circle ? height : nil, height: height)
+                    .frame(maxWidth: expands ? .infinity : nil)
+                    // A solid red base keeps the primary action red even when the
+                    // window is inactive (macOS greys out tinted glass there).
+                    .background(Capsule().fill(Theme.redGradient).opacity(prominent ? (hovered ? 1 : 0.92) : 0))
+                    .contentShape(Capsule())
+                    .glassEffect(.regular.interactive(), in: Capsule())
+                    .glassEffectID(glassID, in: namespace)
+                    .scaleEffect(hovered ? 1.035 : 1)
+                    .shadow(color: prominent ? Theme.red.opacity(hovered ? 0.35 : 0.18) : .clear, radius: hovered ? 10 : 6, y: 3)
             }
         }
-        .padding(2)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.fill))
+        .buttonStyle(PressStyle())
+    }
+}
+
+/// Borderless icon button that rotates/brightens on hover.
+struct IconButton: View {
+    let systemImage: String
+    var hoverRotation: Double = 0
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Hoverable { hovered in
+                Image(systemName: systemImage)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(hovered ? .primary : .secondary)
+                    .rotationEffect(.degrees(hovered ? hoverRotation : 0))
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(hovered ? Theme.fill : .clear))
+                    .contentShape(Circle())
+            }
+        }
+        .buttonStyle(PressStyle())
     }
 }

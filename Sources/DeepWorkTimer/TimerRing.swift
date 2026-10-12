@@ -1,55 +1,79 @@
 import SwiftUI
 
-/// A thin ring like the Clock app's timer. It shows time remaining (it drains as
-/// the session runs). While idle it's a dial: drag around it to set the length.
+/// The timer ring. It shows time remaining (it drains as the session runs).
+/// While idle it's a dial: drag around it to set the length.
 struct TimerRing: View {
     /// 0...1 portion of the ring that's filled.
     var fraction: Double
-    var lineWidth: CGFloat = 7
     /// When set, the ring shows a knob and reports drags as a fraction (0...1).
     var onDrag: ((Double) -> Void)?
 
     var body: some View {
-        GeometryReader { geo in
-            let size = min(geo.size.width, geo.size.height)
-            let radius = (size - lineWidth) / 2
-            let f = max(0, min(1, fraction))
+        Hoverable { hovered in
+            GeometryReader { geo in
+                let editable = onDrag != nil
+                let lineWidth: CGFloat = editable && hovered ? 9 : 7
+                let size = min(geo.size.width, geo.size.height)
+                let radius = (size - 9) / 2
+                let f = max(0, min(1, fraction))
 
-            ZStack {
-                Circle()
-                    .stroke(Theme.track, lineWidth: lineWidth)
-                Circle()
-                    .trim(from: 0, to: f)
-                    .stroke(Theme.red, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                if onDrag != nil {
+                ZStack {
+                    // Soft red glow behind everything, for warmth and for the glass to pick up.
                     Circle()
-                        .fill(.white)
-                        .frame(width: lineWidth + 9, height: lineWidth + 9)
-                        .shadow(color: .black.opacity(0.22), radius: 2.5, y: 1)
-                        .offset(y: -radius)
-                        .rotationEffect(.degrees(f * 360))
+                        .fill(Theme.red.opacity(0.10))
+                        .blur(radius: 28)
+                        .scaleEffect(0.95)
+
+                    Circle()
+                        .stroke(Theme.track, lineWidth: lineWidth)
+                        .frame(width: radius * 2, height: radius * 2)
+
+                    arc(f)
+                        .stroke(Theme.red, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                        .blur(radius: 6)
+                        .opacity(0.35)
+                        .frame(width: radius * 2, height: radius * 2)
+
+                    arc(f)
+                        .stroke(Theme.redGradient, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                        .frame(width: radius * 2, height: radius * 2)
+
+                    if editable {
+                        let knob: CGFloat = hovered ? 20 : 15
+                        Circle()
+                            .fill(.white)
+                            .frame(width: knob, height: knob)
+                            .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+                            .overlay(Circle().fill(Theme.red).frame(width: hovered ? 6 : 0, height: hovered ? 6 : 0))
+                            .offset(y: -radius)
+                            .rotationEffect(.degrees(f * 360))
+                    }
                 }
+                .frame(width: size, height: size)
+                .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                .contentShape(Circle())
+                .pointerStyle(editable ? .grabIdle : nil)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            guard let onDrag else { return }
+                            let dx = value.location.x - geo.size.width / 2
+                            let dy = value.location.y - geo.size.height / 2
+                            // Ignore the middle, where the angle jumps around.
+                            guard hypot(dx, dy) > radius * 0.45 else { return }
+                            // 0 at 12 o'clock, increasing clockwise.
+                            var angle = atan2(dx, -dy)
+                            if angle < 0 { angle += 2 * .pi }
+                            onDrag(angle / (2 * .pi))
+                        },
+                    including: editable ? .all : .subviews
+                )
             }
-            .frame(width: size, height: size)
-            .position(x: geo.size.width / 2, y: geo.size.height / 2)
-            .contentShape(Circle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        guard let onDrag else { return }
-                        let dx = value.location.x - geo.size.width / 2
-                        let dy = value.location.y - geo.size.height / 2
-                        // Ignore the middle, where the angle jumps around.
-                        guard hypot(dx, dy) > radius * 0.45 else { return }
-                        // 0 at 12 o'clock, increasing clockwise.
-                        var angle = atan2(dx, -dy)
-                        if angle < 0 { angle += 2 * .pi }
-                        onDrag(angle / (2 * .pi))
-                    },
-                including: onDrag == nil ? .subviews : .all
-            )
         }
+    }
+
+    private func arc(_ f: Double) -> some Shape {
+        Circle().trim(from: 0, to: f).rotation(.degrees(-90))
     }
 }
 

@@ -6,37 +6,41 @@ struct ToastView: View {
     let transition: Transition
     var onAction: () -> Void = {}
     var onClose: () -> Void = {}
+    @Namespace private var glass
 
     var body: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Theme.red)
-                .frame(width: 38, height: 38)
-                .overlay(
-                    Image(systemName: icon)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white)
-                )
+        GlassEffectContainer(spacing: 8) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(Theme.redGradient)
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        Image(systemName: icon)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(.white)
+                    )
+                    .shadow(color: Theme.red.opacity(0.35), radius: 6, y: 2)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .semibold))
-                Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.system(size: 13, weight: .semibold))
+                    Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+
+                GlassButton(prominent: true, height: 30, namespace: glass, action: onAction) {
+                    Text(actionTitle).font(.system(size: 12, weight: .semibold))
+                }
+                IconButton(systemImage: "xmark", hoverRotation: 90, action: onClose)
+                    .accessibilityLabel("Dismiss")
             }
-
-            Spacer(minLength: 8)
-
-            Button(actionTitle, action: onAction)
-                .buttonStyle(PillButtonStyle(tinted: true))
-            Button(action: onClose) { Image(systemName: "xmark").font(.system(size: 11, weight: .semibold)) }
-                .buttonStyle(IconButtonStyle())
+            .padding(.leading, 12)
+            .padding(.trailing, 10)
+            .padding(.vertical, 10)
+            .frame(width: 390)
+            .glassEffect(.regular, in: Capsule())
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .frame(width: 380)
-        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.black.opacity(0.07), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
-        .padding(24) // room for the shadow inside the transparent window
+        .padding(24) // room for the glass shadow inside the transparent window
         .environment(\.colorScheme, .light)
     }
 

@@ -31,12 +31,13 @@ open "deepwork://add?minutes=10"   # also: subtract
 
 ## Previewing the UI
 
-`.build/release/DeepWorkTimer --snapshot ./snaps` renders every screen
+`.build/release/DeepWorkTimer --preview` opens a window showing every state with real
+Liquid Glass. `--snapshot ./snaps` renders every screen
 to PNGs with sample data, then exits. Native text fields and menus show as placeholders.
 
 ## Build & run
 
-Needs macOS 14+ and the Xcode Command Line Tools (full Xcode not required).
+Needs macOS 26+ (Liquid Glass) and the Xcode Command Line Tools (full Xcode not required).
 
 ```bash
 ./build.sh
