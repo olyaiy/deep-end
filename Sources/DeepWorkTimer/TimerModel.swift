@@ -47,12 +47,13 @@ final class TimerModel: ObservableObject {
 
     private var workStartedAt: Date?
     private var ticker: Task<Void, Never>?
+    /// Preview models (for design snapshots) must never touch the real Focus or wallpaper.
+    private let isLive: Bool
 
     init(live: Bool = true) {
+        isLive = live
         guard live else { return }
         TimerModel.live = self
-        // If we crashed mid-session last time, put the wallpaper and Focus back.
-        SessionEffects.shared.revert()
         ticker = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
@@ -92,7 +93,7 @@ final class TimerModel: ObservableObject {
         if let minutes { UserDefaults.standard.set(minutes, forKey: Prefs.Key.workMinutes) }
         workStartedAt = Date()
         begin(.work, minutes: Prefs.workMinutes)
-        SessionEffects.shared.apply()
+        if isLive { SessionEffects.shared.apply() }
     }
 
     func pause() {
@@ -136,7 +137,7 @@ final class TimerModel: ObservableObject {
     func stop() {
         if phase == .work {
             recordFocusTime(completed: false)
-            SessionEffects.shared.revert()
+            if isLive { SessionEffects.shared.revert() }
         }
         reset()
     }
@@ -173,7 +174,7 @@ final class TimerModel: ObservableObject {
 
         case .work:
             recordFocusTime(completed: completed)
-            SessionEffects.shared.revert()
+            if isLive { SessionEffects.shared.revert() }
             if completed { cycleCount += 1 }
             let long = cycleCount >= Prefs.sessionsPerLongBreak
             if long { cycleCount = 0 }

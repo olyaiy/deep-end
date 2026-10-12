@@ -28,10 +28,38 @@ struct DeepWorkTimerApp: App {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var terminationSignal: DispatchSourceSignal?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
-            if DesignPreview.previewRequested { DesignPreview.showWindow() }
+            if DesignPreview.previewRequested {
+                // The preview shares settings with the real app; leave its effects alone.
+                DesignPreview.showWindow()
+                return
+            }
+            // Clean up after a crash or kill mid-session. This runs after launch
+            // finishes, once macOS has reported the connected displays.
+            SessionEffects.shared.revert()
         }
+
+        // A display that was unplugged mid-session gets its wallpaper back when it returns.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { _ in
+            MainActor.assumeIsolated {
+                if TimerModel.live?.phase != .work { SessionEffects.shared.restoreWallpapers() }
+            }
+        }
+
+        // `kill`/`pkill` (SIGTERM) skips applicationWillTerminate; clean up anyway.
+        signal(SIGTERM, SIG_IGN)
+        let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        source.setEventHandler {
+            MainActor.assumeIsolated { SessionEffects.shared.revert() }
+            exit(0)
+        }
+        source.resume()
+        terminationSignal = source
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -42,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         // Never leave the Focus or wallpaper stuck on if the app quits mid-session.
+        guard !DesignPreview.previewRequested else { return }
         MainActor.assumeIsolated {
             SessionEffects.shared.revert()
         }

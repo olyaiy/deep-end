@@ -1,8 +1,12 @@
 import AppKit
 
 /// Turns on the Focus mode and swaps the wallpaper for a work session, and puts
-/// everything back afterwards. The "active" flag and original wallpapers are
-/// persisted so a crash mid-session can be cleaned up on next launch.
+/// everything back afterwards.
+///
+/// The rule: a screen's wallpaper is only swapped once its original is saved,
+/// and a saved original is only discarded once it's actually been put back.
+/// Originals are persisted, so a crash, a kill, or a display that's unplugged
+/// mid-session gets restored later (on next launch or when it reconnects).
 @MainActor
 final class SessionEffects {
     static let shared = SessionEffects()
@@ -11,42 +15,89 @@ final class SessionEffects {
     private let activeKey = "effects.active"
     private let savedWallpapersKey = "effects.savedWallpapers"
 
+    /// Originals we've restored this run. macOS can keep reporting the old
+    /// wallpaper for a moment after a change, so this is more reliable than
+    /// re-reading it if a new session starts soon after one ends.
+    private var lastRestored: [String: String] = [:]
+
     private let fillOptions: [NSWorkspace.DesktopImageOptionKey: Any] = [
         .imageScaling: NSImageScaling.scaleProportionallyUpOrDown.rawValue,
         .allowClipping: true,
     ]
 
+    private var saved: [String: String] {
+        get { defaults.dictionary(forKey: savedWallpapersKey) as? [String: String] ?? [:] }
+        set { newValue.isEmpty ? defaults.removeObject(forKey: savedWallpapersKey) : defaults.set(newValue, forKey: savedWallpapersKey) }
+    }
+
     func apply() {
         guard Prefs.effectsEnabled, !defaults.bool(forKey: activeKey) else { return }
+        defaults.set(true, forKey: activeKey)
 
-        var saved: [String: String] = [:]
         if let wallpaper = Prefs.wallpaperURL ?? DefaultWallpaper.url() {
+            var originals = saved
             for screen in NSScreen.screens {
                 guard let id = screen.displayID else { continue }
-                if let current = NSWorkspace.shared.desktopImageURL(for: screen) {
-                    saved[id] = current.path
+                if originals[id] == nil, let original = originalWallpaper(for: screen, id: id) {
+                    originals[id] = original
                 }
-                try? NSWorkspace.shared.setDesktopImageURL(wallpaper, for: screen, options: fillOptions)
+                // Without a known original we couldn't put it back, so leave it alone.
+                guard originals[id] != nil else { continue }
+                // Save before changing anything, so a crash right here is still recoverable.
+                saved = originals
+                setWallpaper(wallpaper, for: screen)
             }
         }
-        defaults.set(saved, forKey: savedWallpapersKey)
-        defaults.set(true, forKey: activeKey)
 
         ShortcutRunner.run(Prefs.focusOnShortcut)
     }
 
     func revert() {
-        guard defaults.bool(forKey: activeKey) else { return }
-
-        let saved = defaults.dictionary(forKey: savedWallpapersKey) as? [String: String] ?? [:]
-        for screen in NSScreen.screens {
-            guard let id = screen.displayID, let path = saved[id] else { continue }
-            try? NSWorkspace.shared.setDesktopImageURL(URL(fileURLWithPath: path), for: screen, options: fillOptions)
-        }
-        defaults.removeObject(forKey: savedWallpapersKey)
+        let wasActive = defaults.bool(forKey: activeKey)
+        restoreWallpapers()
         defaults.set(false, forKey: activeKey)
+        if wasActive { ShortcutRunner.run(Prefs.focusOffShortcut) }
+    }
 
-        ShortcutRunner.run(Prefs.focusOffShortcut)
+    /// Put back any saved originals for the screens connected right now.
+    /// Ones for disconnected screens stay saved until they reconnect.
+    func restoreWallpapers() {
+        var remaining = saved
+        guard !remaining.isEmpty else { return }
+        for screen in NSScreen.screens {
+            guard let id = screen.displayID, let path = remaining[id] else { continue }
+            if setWallpaper(URL(fileURLWithPath: path), for: screen) {
+                remaining[id] = nil
+                lastRestored[id] = path
+            }
+        }
+        saved = remaining
+    }
+
+    /// The screen's current wallpaper, as long as it's a real image file and not
+    /// one of ours (e.g. left over from an interrupted session).
+    private func originalWallpaper(for screen: NSScreen, id: String) -> String? {
+        if let current = NSWorkspace.shared.desktopImageURL(for: screen), current.isFileURL,
+           FileManager.default.fileExists(atPath: current.path), !isSessionWallpaper(current) {
+            return current.path
+        }
+        return lastRestored[id]
+    }
+
+    private func isSessionWallpaper(_ url: URL) -> Bool {
+        let ours = [Prefs.wallpaperURL, DefaultWallpaper.url()].compactMap { $0?.standardizedFileURL.path }
+        return ours.contains(url.standardizedFileURL.path)
+    }
+
+    @discardableResult
+    private func setWallpaper(_ url: URL, for screen: NSScreen) -> Bool {
+        do {
+            try NSWorkspace.shared.setDesktopImageURL(url, for: screen, options: fillOptions)
+            return true
+        } catch {
+            NSLog("Deep Work Timer: couldn't set wallpaper on %@: %@", screen.localizedName, String(describing: error))
+            return false
+        }
     }
 }
 

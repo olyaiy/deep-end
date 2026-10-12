@@ -61,11 +61,11 @@ warning if a selected shortcut doesn't exist.
 
 During work sessions the wallpaper switches to the image you choose in settings,
 or a generated dark one (stored in `~/Library/Application Support/DeepWorkTimer`).
-The original wallpaper for each display is saved and restored afterwards, even
-after a crash (it's restored on next launch).
-
-Known limitation: if your normal wallpaper is a dynamic or aerial one, restoring it
-may land on a still version of it.
+The original wallpaper for each display is saved before anything changes and
+restored afterwards: on stop, on quit, on `kill`, after a crash (on next launch), and
+for a display unplugged mid-session (when it reconnects). A display whose current
+wallpaper isn't a plain image file (e.g. a dynamic or aerial one) is left alone,
+since it couldn't be put back exactly.
 
 ## Layout
 
