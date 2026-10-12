@@ -9,47 +9,41 @@ struct ToastView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle().fill(phase.gradient)
-                Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            .frame(width: 36, height: 36)
-            .shadow(color: phase.tint.opacity(0.5), radius: 8, y: 2)
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(Theme.red)
+                .frame(width: 38, height: 38)
+                .overlay(
+                    Image(systemName: icon)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 13, weight: .semibold))
-                Text(subtitle).font(.system(size: 11.5)).foregroundStyle(.secondary)
+                Text(subtitle).font(.system(size: 12)).foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 8)
 
             Button(actionTitle, action: onAction)
-                .buttonStyle(ChipButtonStyle(phase: phase, selected: true))
-            Button(action: onClose) { Image(systemName: "xmark") }
-                .buttonStyle(GhostButtonStyle())
+                .buttonStyle(PillButtonStyle(tinted: true))
+            Button(action: onClose) { Image(systemName: "xmark").font(.system(size: 11, weight: .semibold)) }
+                .buttonStyle(IconButtonStyle())
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .frame(width: 400)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
-        .shadow(color: .black.opacity(0.22), radius: 18, y: 8)
+        .frame(width: 380)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.white))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.black.opacity(0.07), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.16), radius: 18, y: 8)
         .padding(24) // room for the shadow inside the transparent window
-    }
-
-    private var phase: Phase {
-        switch transition {
-        case .workDone(_, let long): long ? .longBreak : .shortBreak
-        case .breakDone: .work
-        }
+        .environment(\.colorScheme, .light)
     }
 
     private var icon: String {
         switch transition {
         case .workDone: "checkmark"
-        case .breakDone: "play.fill"
+        case .breakDone: "timer"
         }
     }
 
@@ -63,7 +57,7 @@ struct ToastView: View {
     private var subtitle: String {
         switch transition {
         case .workDone(let minutes, let long):
-            long ? "Long break · \(minutes) min. Step away properly." : "Take \(minutes) min. You've earned it."
+            long ? "\(minutes)-minute long break. Step away." : "Enjoy a \(minutes)-minute break."
         case .breakDone(let next):
             "Ready for session \(next)?"
         }
@@ -71,8 +65,8 @@ struct ToastView: View {
 
     private var actionTitle: String {
         switch transition {
-        case .workDone: "Skip break"
-        case .breakDone: "Start focus"
+        case .workDone: "Skip Break"
+        case .breakDone: "Start"
         }
     }
 }
@@ -110,6 +104,7 @@ final class ToastController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
+        panel.appearance = NSAppearance(named: .aqua)
         panel.contentView = hosting
 
         let screen = NSScreen.main ?? NSScreen.screens.first

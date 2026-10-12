@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// `DeepWorkTimer --snapshot <dir>` renders each screen to PNGs (light and dark)
+/// `DeepWorkTimer --snapshot <dir>` renders each screen to PNGs
 /// and exits. Handy for checking the design without clicking through the menu bar.
 /// Note: AppKit-backed controls (text fields, menus) render as placeholders.
 @MainActor
@@ -24,8 +24,8 @@ enum Snapshotter {
             return DailyStats(day: f.string(from: date), focusSeconds: TimeInterval(minutes * 60))
         } + [today]
 
-        func screen(_ model: TimerModel, settings: Bool = false) -> AnyView {
-            AnyView(MenuContentView(showingSettings: settings).environmentObject(model))
+        func screen(_ model: TimerModel) -> AnyView {
+            AnyView(MenuContentView().environmentObject(model))
         }
 
         let scenarios: [(String, AnyView)] = [
@@ -36,14 +36,13 @@ enum Snapshotter {
                                          intention: "Write the Q4 planning doc", today: today, week: week))),
             ("4-short-break", screen(.preview(phase: .shortBreak, remaining: 412, total: 600, cycle: 1, today: today, week: week))),
             ("5-long-break", screen(.preview(phase: .longBreak, remaining: 950, total: 1200, today: today, week: week))),
-            ("6-settings", screen(.preview(phase: .idle, today: today, week: week), settings: true)),
-            ("7-toast", AnyView(ToastView(transition: .workDone(breakMinutes: 10, longBreak: false)))),
+            ("6-toast", AnyView(ToastView(transition: .workDone(breakMinutes: 10, longBreak: false)))),
         ]
 
-        for scheme in [ColorScheme.dark, .light] {
+        for scheme in [ColorScheme.light] {
             for (name, view) in scenarios {
                 let content = view
-                    .background(scheme == .dark ? Color(white: 0.15) : Color(white: 0.95))
+                    .background(Color(white: 0.93))
                     .environment(\.colorScheme, scheme)
                 let renderer = ImageRenderer(content: content)
                 renderer.scale = 2

@@ -4,19 +4,21 @@ A tiny macOS menu bar timer for deep work sessions. When a work session starts i
 turns on a Focus mode and swaps your wallpaper; when the session ends (or you
 stop, or the app quits) everything goes back.
 
-- Progress ring + countdown in the menu bar; a dial you drag to set session length
-- "What will you focus on?" intention, logged with each session
+- Apple Clock–style design in white and red: a compact, horizontal popover
+- A ring you drag to set session length; it drains as the session runs
+- "What are you working on?" intention, logged with each session
 - Work → break cycle with a long break every N sessions (default 50 / 10 / 20, long break every 3)
 - ±5 min mid-session, pause, skip, stop
 - A floating banner + sound when a phase ends (works even when Focus silences notifications)
-- Today's focus time vs. a daily goal, a 7-day chart, and a session log
+- Today's focus time vs. a daily goal
+- A standard macOS Settings window
 - Focus mode on/off via Shortcuts, custom or generated wallpaper
 - Launch at login
 
 ## Controls
 
 In the popover: **Return** start · **Space** pause/resume · **+ / −** adjust 5 min ·
-**⌘→** skip · **⌘.** stop · **⌘,** settings.
+**⌘→** skip · **⌘.** cancel · **⌘,** settings.
 
 From anywhere (Shortcuts, Raycast, Alfred, Terminal) via URL:
 
@@ -29,7 +31,7 @@ open "deepwork://add?minutes=10"   # also: subtract
 
 ## Previewing the UI
 
-`.build/release/DeepWorkTimer --snapshot ./snaps` renders every screen (light and dark)
+`.build/release/DeepWorkTimer --snapshot ./snaps` renders every screen
 to PNGs with sample data, then exits. Native text fields and menus show as placeholders.
 
 ## Build & run
@@ -71,9 +73,9 @@ may land on a still version of it.
 | `DeepWorkTimerApp.swift` | App entry, menu bar label, `deepwork://` commands |
 | `TimerModel.swift` | Phases, countdown (end-date based, survives sleep), stats, alerts |
 | `SessionEffects.swift` | Focus via Shortcuts, wallpaper swap/restore, default wallpaper |
-| `MenuContentView.swift` | Timer screen and today card |
-| `SettingsView.swift` | Settings screen |
-| `Theme.swift`, `Dial.swift` | Colors, button/toggle styles, the dial, menu bar icon |
+| `MenuContentView.swift` | The popover |
+| `SettingsView.swift` | Settings window |
+| `Theme.swift`, `TimerRing.swift` | Colors, buttons, segmented control, the ring, menu bar icon |
 | `Toast.swift` | Floating banner when a phase ends |
 | `Snapshot.swift` | `--snapshot` UI renderer |
 | `Prefs.swift` | UserDefaults keys and defaults |

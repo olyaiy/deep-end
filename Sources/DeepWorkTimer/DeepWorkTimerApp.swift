@@ -48,10 +48,10 @@ struct MenuBarLabel: View {
 
     var body: some View {
         if timer.phase == .idle {
-            Image(systemName: "brain.head.profile")
+            Image(systemName: "timer")
         } else {
             HStack(spacing: 4) {
-                Image(nsImage: MenuBarIcon.ring(progress: timer.progress, paused: timer.isPaused))
+                Image(nsImage: MenuBarIcon.ring(remaining: 1 - timer.progress, paused: timer.isPaused))
                 if showTime {
                     Text(timer.displayTime).monospacedDigit()
                 }

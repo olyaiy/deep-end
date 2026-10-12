@@ -1,9 +1,29 @@
 import ServiceManagement
 import SwiftUI
 
-struct SettingsView: View {
-    let done: () -> Void
+/// A standard macOS settings window, opened from the gear in the popover.
+@MainActor
+enum SettingsWindow {
+    private static var window: NSWindow?
 
+    static func show() {
+        if window == nil {
+            let controller = NSHostingController(rootView: SettingsView())
+            let window = NSWindow(contentViewController: controller)
+            window.title = "Deep Work Timer"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.appearance = NSAppearance(named: .aqua)
+            window.setContentSize(NSSize(width: 460, height: 600))
+            window.center()
+            self.window = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
+    }
+}
+
+struct SettingsView: View {
     @AppStorage(Prefs.Key.workMinutes) private var workMinutes = 50
     @AppStorage(Prefs.Key.shortBreakMinutes) private var shortBreakMinutes = 10
     @AppStorage(Prefs.Key.longBreakMinutes) private var longBreakMinutes = 20
@@ -19,124 +39,82 @@ struct SettingsView: View {
     @StateObject private var state = SettingsState()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            header
-
-            group("Timer") {
-                row("Focus", icon: "brain.head.profile") {
-                    ValueStepper(value: $workMinutes, range: 5...Prefs.maxWorkMinutes, step: 5) { "\($0) min" }
-                }
-                row("Short break", icon: "cup.and.saucer") {
-                    ValueStepper(value: $shortBreakMinutes, range: 1...60) { "\($0) min" }
-                }
-                row("Long break", icon: "figure.walk") {
-                    ValueStepper(value: $longBreakMinutes, range: 5...90, step: 5) { "\($0) min" }
-                }
-                row("Long break after", icon: "repeat") {
-                    ValueStepper(value: $sessionsPerLongBreak, range: 1...8) { "\($0) \($0 == 1 ? "session" : "sessions")" }
-                }
-                row("Daily goal", icon: "target") {
-                    ValueStepper(value: $dailyGoalMinutes, range: 30...720, step: 30) { DailyStats.durationText(TimeInterval($0 * 60)) }
-                }
+        Form {
+            Section("Timer") {
+                stepper("Focus", value: $workMinutes, in: 5...Prefs.maxWorkMinutes, step: 5) { "\($0) min" }
+                stepper("Short break", value: $shortBreakMinutes, in: 1...60) { "\($0) min" }
+                stepper("Long break", value: $longBreakMinutes, in: 5...90, step: 5) { "\($0) min" }
+                stepper("Long break after", value: $sessionsPerLongBreak, in: 1...8) { $0 == 1 ? "1 session" : "\($0) sessions" }
+                stepper("Daily goal", value: $dailyGoalMinutes, in: 30...720, step: 30) { DailyStats.durationText(TimeInterval($0 * 60)) }
             }
 
-            group("During focus") {
-                Toggle(isOn: $effectsEnabled.animation(.snappy)) {
-                    label("Focus mode & wallpaper", icon: "moon.stars")
-                }
-                .toggleStyle(SwitchStyle())
-                .padding(.vertical, 2)
-
+            Section {
+                Toggle("Turn on Focus and change wallpaper", isOn: $effectsEnabled)
                 if effectsEnabled {
-                    row("Turn on with", icon: "bolt") { shortcutMenu($focusOnShortcut) }
-                    row("Turn off with", icon: "bolt.slash") { shortcutMenu($focusOffShortcut) }
-                    if !state.shortcuts.isEmpty, missingShortcut {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(Phase.longBreak.tint)
-                            Text("That shortcut doesn't exist yet. In Shortcuts, make one with a “Set Focus” action.")
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
+                    shortcutPicker("Turn Focus on with", selection: $focusOnShortcut)
+                    shortcutPicker("Turn Focus off with", selection: $focusOffShortcut)
+                    LabeledContent("Wallpaper") {
+                        HStack(spacing: 10) {
+                            if let thumbnail = WallpaperThumbnail.image(for: Prefs.wallpaperURL ?? DefaultWallpaper.url()) {
+                                Image(nsImage: thumbnail)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 52, height: 32)
+                                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                    .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(.black.opacity(0.12), lineWidth: 0.5))
+                                    .id(wallpaperPath)
+                            }
+                            Button("Choose…", action: chooseWallpaper)
+                            if !wallpaperPath.isEmpty {
+                                Button("Use Default") { wallpaperPath = "" }
+                            }
                         }
-                        .font(.system(size: 11))
-                        .padding(.vertical, 2)
                     }
-                    wallpaperRow
+                }
+            } header: {
+                Text("During Focus")
+            } footer: {
+                if effectsEnabled, !state.shortcuts.isEmpty, missingShortcut {
+                    Text("A selected shortcut doesn't exist yet. In the Shortcuts app, create one with a “Set Focus” action.")
+                        .foregroundStyle(Theme.red)
+                } else {
+                    Text("Focus modes are switched with Shortcuts, since macOS has no direct way to do it.")
+                        .foregroundStyle(.secondary)
                 }
             }
 
-            group("General") {
-                Toggle(isOn: $playSound) { label("Sound when a phase ends", icon: "speaker.wave.2") }
-                    .toggleStyle(SwitchStyle())
-                Toggle(isOn: $showTimeInMenuBar) { label("Time in menu bar", icon: "menubar.rectangle") }
-                    .toggleStyle(SwitchStyle())
-                Toggle(isOn: Binding(get: { state.launchAtLogin }, set: { state.setLaunchAtLogin($0) })) {
-                    label("Launch at login", icon: "power")
-                }
-                .toggleStyle(SwitchStyle())
+            Section("General") {
+                Toggle("Play a sound when a session or break ends", isOn: $playSound)
+                Toggle("Show time in menu bar", isOn: $showTimeInMenuBar)
+                Toggle("Open at login", isOn: Binding(get: { state.launchAtLogin }, set: { state.setLaunchAtLogin($0) }))
             }
 
-            HStack(spacing: 6) {
-                Image(systemName: "link")
-                Text("Control from anywhere: deepwork://start, pause, stop, add")
+            Section {
+                LabeledContent("Control from anywhere") {
+                    Text("deepwork://start · pause · stop")
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                HStack {
+                    Spacer()
+                    Button("Quit Deep Work Timer") { NSApp.terminate(nil) }
+                }
             }
-            .font(.system(size: 10))
-            .foregroundStyle(.tertiary)
-            .frame(maxWidth: .infinity)
         }
+        .formStyle(.grouped)
+        .toggleStyle(.switch)
+        .tint(Theme.red)
+        .frame(width: 460)
+        .frame(minHeight: 560)
         .task { state.shortcuts = await ShortcutRunner.list() }
     }
 
-    private var header: some View {
-        ZStack {
-            Text("Settings")
-                .font(.system(size: 13, weight: .semibold))
-            HStack {
-                Button(action: done) {
-                    HStack(spacing: 3) {
-                        Image(systemName: "chevron.left").font(.system(size: 11, weight: .semibold))
-                        Text("Back")
-                    }
-                    .font(.system(size: 12, weight: .medium))
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .keyboardShortcut(.cancelAction)
-                Spacer()
+    private func stepper(_ title: String, value: Binding<Int>, in range: ClosedRange<Int>, step: Int = 1,
+                         format: @escaping (Int) -> String) -> some View {
+        Stepper(value: value, in: range, step: step) {
+            LabeledContent(title) {
+                Text(format(value.wrappedValue)).monospacedDigit()
             }
-        }
-    }
-
-    // MARK: Building blocks
-
-    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            SectionLabel(title: title).padding(.leading, 4)
-            VStack(alignment: .leading, spacing: 8) {
-                content()
-            }
-            .card(padding: 12)
-        }
-    }
-
-    private func row<Control: View>(_ title: String, icon: String, @ViewBuilder control: () -> Control) -> some View {
-        HStack {
-            label(title, icon: icon)
-            Spacer(minLength: 8)
-            control()
-        }
-    }
-
-    private func label(_ title: String, icon: String) -> some View {
-        HStack(spacing: 9) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Phase.work.gradient)
-                .frame(width: 18)
-            Text(title)
-                .font(.system(size: 12.5))
-                .foregroundStyle(.primary)
         }
     }
 
@@ -144,49 +122,14 @@ struct SettingsView: View {
         [focusOnShortcut, focusOffShortcut].contains { !$0.isEmpty && !state.shortcuts.contains($0) }
     }
 
-    private func shortcutMenu(_ selection: Binding<String>) -> some View {
+    private func shortcutPicker(_ title: String, selection: Binding<String>) -> some View {
         // Keep the current value selectable even if the shortcut doesn't exist yet.
         let options = Array(Set(state.shortcuts + [selection.wrappedValue]).subtracting([""]))
             .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-        return Menu {
-            Button("None") { selection.wrappedValue = "" }
+        return Picker(title, selection: selection) {
+            Text("None").tag("")
             Divider()
-            ForEach(options, id: \.self) { name in
-                Button {
-                    selection.wrappedValue = name
-                } label: {
-                    if name == selection.wrappedValue { Label(name, systemImage: "checkmark") } else { Text(name) }
-                }
-            }
-        } label: {
-            Text(selection.wrappedValue.isEmpty ? "None" : selection.wrappedValue)
-                .font(.system(size: 12))
-                .lineLimit(1)
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-    }
-
-    private var wallpaperRow: some View {
-        HStack {
-            label("Wallpaper", icon: "photo")
-            Spacer(minLength: 8)
-            if let thumbnail = WallpaperThumbnail.image(for: Prefs.wallpaperURL ?? DefaultWallpaper.url()) {
-                Image(nsImage: thumbnail)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 48, height: 30)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5))
-                    .id(wallpaperPath)
-            }
-            Button("Change") { chooseWallpaper() }
-                .buttonStyle(ChipButtonStyle(phase: .work))
-            if !wallpaperPath.isEmpty {
-                Button { wallpaperPath = "" } label: { Image(systemName: "arrow.uturn.backward") }
-                    .buttonStyle(GhostButtonStyle())
-                    .help("Use the default wallpaper")
-            }
+            ForEach(options, id: \.self) { Text($0).tag($0) }
         }
     }
 
@@ -194,8 +137,7 @@ struct SettingsView: View {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = false
-        panel.message = "Choose a wallpaper for deep work sessions"
-        NSApp.activate(ignoringOtherApps: true)
+        panel.message = "Choose a wallpaper for focus sessions"
         if panel.runModal() == .OK, let url = panel.url {
             wallpaperPath = url.path
         }
