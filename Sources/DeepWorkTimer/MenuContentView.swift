@@ -317,6 +317,7 @@ struct MenuContentView: View {
         let goal = Double(goalMinutes * 60)
         let fraction = min(1, timer.today.focusSeconds / goal)
         let sessions = timer.today.sessions
+        let plan = sessionPlan
         return Hoverable { hovered in
             HStack(spacing: 8) {
                 Text("Today").font(.system(size: 12, weight: .semibold))
@@ -346,16 +347,8 @@ struct MenuContentView: View {
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
 
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Theme.track)
-                        Capsule()
-                            .fill(fraction >= 1 ? AnyShapeStyle(Theme.green) : AnyShapeStyle(Theme.redGradient))
-                            .frame(width: fraction > 0 ? max(6, geo.size.width * fraction) : 0)
-                    }
-                }
-                .frame(height: hovered ? 6 : 4)
-                .animation(Theme.spring, value: fraction)
+                SessionBar(plan: plan, height: hovered ? 6 : 4)
+                    .animation(Theme.spring, value: plan)
 
                 if fraction >= 1 {
                     Image(systemName: "checkmark.circle.fill")
@@ -363,15 +356,38 @@ struct MenuContentView: View {
                         .foregroundStyle(Theme.green)
                         .symbolEffect(.bounce, value: sessions)
                 }
-                Text(sessions == 1 ? "1 session" : "\(sessions) sessions")
+                Text(sessionsText(plan))
                     .font(.system(size: 12))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 20)
             .frame(height: 38)
-            .help("\(Int(fraction * 100))% of today's goal")
+            .help(planHelp(plan, fraction: fraction))
         }
+    }
+
+    private var sessionPlan: SessionPlan {
+        let entries = timer.today.entries
+        var current: (TimeInterval, TimeInterval)?
+        if phase == .work { current = (timer.phaseDuration, max(0, timer.phaseDuration - timer.remaining)) }
+        return SessionPlan(done: entries.map(\.seconds), completed: entries.map(\.completed),
+                           current: current.map { (length: $0.0, elapsed: $0.1) },
+                           sessionLength: TimeInterval(workMinutes * 60), goal: TimeInterval(goalMinutes * 60))
+    }
+
+    private func sessionsText(_ plan: SessionPlan) -> String {
+        let total = plan.segments.count
+        let done = plan.doneCount
+        return total == done ? (done == 1 ? "1 session" : "\(done) sessions") : "\(done) of \(total)"
+    }
+
+    private func planHelp(_ plan: SessionPlan, fraction: Double) -> String {
+        // Count at your session length, even if the bar merged segments to stay readable.
+        let plannedSeconds = plan.segments.filter { $0.kind == .next || $0.kind == .planned }.map(\.seconds).reduce(0, +)
+        let left = Int((plannedSeconds / TimeInterval(workMinutes * 60)).rounded(.up))
+        if left == 0 { return fraction >= 1 ? "Goal reached" : "This session reaches your goal" }
+        return "\(left) more \(workMinutes)-minute session\(left == 1 ? "" : "s") to reach your goal"
     }
 
     // MARK: Settings
