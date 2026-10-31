@@ -58,7 +58,8 @@ struct Hoverable<Content: View>: View {
 struct PressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .brightness(configuration.isPressed ? -0.04 : 0)
             .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
@@ -91,18 +92,45 @@ struct GlassButton<Label: View>: View {
                     .padding(.horizontal, shape == .circle ? 0 : horizontalPadding)
                     .frame(width: shape == .circle ? height : nil, height: height)
                     .frame(maxWidth: expands ? .infinity : nil)
-                    // A solid red base keeps the primary action red even when the
-                    // window is inactive (macOS greys out tinted glass there).
-                    .background(Capsule().fill(tint.map { AnyShapeStyle($0.gradient) } ?? AnyShapeStyle(Theme.redGradient))
-                        .opacity(prominent ? (hovered ? 1 : 0.92) : 0))
+                    .background {
+                        if prominent { primaryFill(hovered: hovered) }
+                    }
                     .contentShape(Capsule())
-                    .glassEffect(.regular.interactive(), in: Capsule())
-                    .glassEffectID(glassID, in: namespace)
-                    .scaleEffect(hovered ? 1.035 : 1)
-                    .shadow(color: prominent ? (tint ?? Theme.red).opacity(hovered ? 0.35 : 0.18) : .clear, radius: hovered ? 10 : 6, y: 3)
+                    .modifier(GlassUnlessProminent(prominent: prominent, glassID: glassID, namespace: namespace))
+                    .shadow(color: prominent ? (tint ?? Theme.red).opacity(hovered ? 0.32 : 0.2) : .clear,
+                            radius: hovered ? 7 : 4, y: hovered ? 3 : 2)
             }
         }
         .buttonStyle(PressStyle())
+    }
+
+    /// Solid (not glass) so it stays red when the window is inactive. Hover just
+    /// lifts it a touch: brighter, with a top sheen and a slightly deeper shadow.
+    private func primaryFill(hovered: Bool) -> some View {
+        Capsule()
+            .fill(tint.map { AnyShapeStyle($0.gradient) } ?? AnyShapeStyle(Theme.redGradient))
+            .overlay(
+                Capsule().fill(LinearGradient(colors: [.white.opacity(hovered ? 0.22 : 0.12), .clear],
+                                              startPoint: .top, endPoint: .center))
+            )
+            .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.5))
+            .brightness(hovered ? 0.04 : 0)
+    }
+}
+
+private struct GlassUnlessProminent: ViewModifier {
+    let prominent: Bool
+    let glassID: String?
+    let namespace: Namespace.ID
+
+    func body(content: Content) -> some View {
+        if prominent {
+            content
+        } else {
+            content
+                .glassEffect(.regular.interactive(), in: Capsule())
+                .glassEffectID(glassID, in: namespace)
+        }
     }
 }
 

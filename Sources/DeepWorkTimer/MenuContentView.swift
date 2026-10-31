@@ -10,6 +10,7 @@ struct MenuContentView: View {
     @AppStorage(Prefs.Key.effectsEnabled) private var effectsEnabled = true
     @ObservedObject private var blocker = SiteBlocker.shared
     @StateObject private var blocklist = Flag()
+    @StateObject private var quickSettings = Flag()
     @Namespace private var glass
 
     private var phase: Phase { timer.phase }
@@ -32,6 +33,7 @@ struct MenuContentView: View {
         }
         .padding(20)
         .frame(width: 400)
+        .overlay(alignment: .topTrailing) { settingsButton.padding(8) }
         .tint(Theme.red)
         .animation(Theme.morph, value: phase)
         .animation(Theme.morph, value: timer.isPaused)
@@ -202,6 +204,27 @@ struct MenuContentView: View {
         .frame(height: 32)
         .background(Capsule().fill(Theme.fill))
         .transition(.opacity)
+    }
+
+    // MARK: Settings
+
+    /// Small and quiet in the corner until hovered.
+    private var settingsButton: some View {
+        Hoverable { hovered in
+            Button { quickSettings.value.toggle() } label: {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(hovered || quickSettings.value ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary))
+                    .rotationEffect(.degrees(hovered ? 45 : 0))
+                    .frame(width: 22, height: 22)
+                    .background(Circle().fill(hovered ? Theme.fill : .clear))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(PressStyle())
+            .help("Settings")
+            .accessibilityLabel("Settings")
+        }
+        .popover(isPresented: $quickSettings.value, arrowEdge: .bottom) { QuickSettingsView() }
     }
 
     // MARK: Blocking

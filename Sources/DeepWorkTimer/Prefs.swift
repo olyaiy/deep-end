@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// UserDefaults keys and registered defaults. Views bind to the same keys with @AppStorage.
 enum Prefs {
@@ -14,6 +14,7 @@ enum Prefs {
         static let wallpaperPath = "wallpaperPath"
         static let playSound = "playSound"
         static let showTimeInMenuBar = "showTimeInMenuBar"
+        static let appearance = "appearance"
     }
 
     /// Longest session the dial can be dragged to.
@@ -32,6 +33,7 @@ enum Prefs {
             Key.wallpaperPath: "",
             Key.playSound: true,
             Key.showTimeInMenuBar: true,
+            Key.appearance: Appearance.light.rawValue,
         ])
     }
 
@@ -52,5 +54,40 @@ enum Prefs {
         let path = d.string(forKey: Key.wallpaperPath) ?? ""
         guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else { return nil }
         return URL(fileURLWithPath: path)
+    }
+}
+
+/// Light, dark, or follow the system. Applied app-wide, so the popover,
+/// settings, toasts and pickers all match.
+enum Appearance: String, CaseIterable {
+    case system, light, dark
+
+    var title: String {
+        switch self {
+        case .system: "Auto"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .system: "circle.lefthalf.filled"
+        case .light: "sun.max.fill"
+        case .dark: "moon.fill"
+        }
+    }
+
+    static var current: Appearance {
+        Appearance(rawValue: UserDefaults.standard.string(forKey: Prefs.Key.appearance) ?? "") ?? .light
+    }
+
+    @MainActor
+    static func apply(_ appearance: Appearance = current) {
+        switch appearance {
+        case .system: NSApp.appearance = nil
+        case .light: NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark: NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
     }
 }

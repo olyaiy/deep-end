@@ -37,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DesignPreview.showWindow()
                 return
             }
+            Appearance.apply()
             // Clean up after a crash or kill mid-session. This runs after launch
             // finishes, once macOS has reported the connected displays.
             SessionEffects.shared.revert()

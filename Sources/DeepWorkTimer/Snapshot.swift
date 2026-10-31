@@ -48,6 +48,10 @@ enum DesignPreview {
             column(.light)
             column(.dark)
             VStack(spacing: 18) {
+                HStack(alignment: .top, spacing: 18) {
+                    QuickSettingsView().background(.regularMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).environment(\.colorScheme, .light)
+                    QuickSettingsView().background(.regularMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).environment(\.colorScheme, .dark)
+                }
                 BlockPickerView().background(.regularMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).environment(\.colorScheme, .light)
                 BlockPickerView().background(.regularMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).environment(\.colorScheme, .dark)
             }
