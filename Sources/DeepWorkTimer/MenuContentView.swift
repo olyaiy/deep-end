@@ -8,6 +8,8 @@ struct MenuContentView: View {
     @AppStorage(Prefs.Key.workMinutes) private var workMinutes = 50
     @AppStorage(Prefs.Key.dailyGoalMinutes) private var goalMinutes = 240
     @AppStorage(Prefs.Key.effectsEnabled) private var effectsEnabled = true
+    @ObservedObject private var blocker = SiteBlocker.shared
+    @StateObject private var blocklist = Flag()
     @Namespace private var glass
 
     private var phase: Phase { timer.phase }
@@ -150,6 +152,9 @@ struct MenuContentView: View {
     private var subtitle: String {
         let today = "\(DailyStats.durationText(timer.today.focusSeconds)) of \(DailyStats.durationText(Double(goalMinutes * 60))) today"
         if isBreak { return timer.isPaused ? "Break paused" : "Back at \(endTime)" }
+        if phase == .work && !timer.isPaused {
+            return "Ends \(endTime) · \(DailyStats.durationText(timer.today.focusSeconds)) today"
+        }
         return today
     }
 
@@ -170,9 +175,7 @@ struct MenuContentView: View {
                 .frame(height: 32)
                 .background(Capsule().fill(Theme.fill))
         case .work:
-            statusPill(symbol: effectsEnabled ? "moon.fill" : "timer",
-                       text: timer.isPaused ? "Paused" : "Ends at \(endTime)",
-                       trailing: nil)
+            blockPill
         case .shortBreak, .longBreak:
             statusPill(symbol: "cup.and.saucer.fill", text: breakTip, trailing: nil)
         }
@@ -199,6 +202,75 @@ struct MenuContentView: View {
         .frame(height: 32)
         .background(Capsule().fill(Theme.fill))
         .transition(.opacity)
+    }
+
+    // MARK: Blocking
+
+    private var blockedCount: Int { blocker.blockedSites.count }
+    private var blockingLive: Bool { blocker.settings.enabled && blockedCount > 0 && blocker.helperInstalled }
+
+    /// Next to Start: what will be blocked. Opens the picker.
+    private var blockButton: some View {
+        Hoverable { hovered in
+            Button { blocklist.value.toggle() } label: {
+                Label(blockShortText, systemImage: blockingLive ? "shield.lefthalf.filled" : "shield.slash")
+                    .overlay(alignment: .topLeading) {
+                        // Sites are chosen but the one-time setup hasn't been done.
+                        if blocker.settings.enabled && blockedCount > 0 && !blocker.helperInstalled {
+                            Circle().fill(.orange).frame(width: 6, height: 6).offset(x: 9, y: -1)
+                        }
+                    }
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(hovered ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    .padding(.horizontal, 8)
+                    .frame(height: 26)
+                    .background(Capsule().fill(hovered ? Theme.fill : .clear))
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("Choose sites to block")
+        }
+        .popover(isPresented: $blocklist.value, arrowEdge: .bottom) { BlockPickerView() }
+    }
+
+    private var blockShortText: String {
+        if !blocker.settings.enabled { return "Blocking off" }
+        if blockedCount == 0 { return "Block sites" }
+        return blockedCount == 1 ? "1 site" : "\(blockedCount) sites"
+    }
+
+    /// During a session: what's blocked right now. Opens the picker.
+    private var blockPill: some View {
+        Hoverable { hovered in
+            Button { blocklist.value.toggle() } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: blockingLive ? "shield.lefthalf.filled" : "shield.slash")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(blockingLive ? Theme.red : .secondary)
+                    Text(blockPillText).lineLimit(1)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.tertiary)
+                }
+                .font(.system(size: 12))
+                .padding(.horizontal, 12)
+                .frame(height: 32)
+                .background(Capsule().fill(Theme.fill.opacity(hovered ? 1.8 : 1)))
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .help("Choose sites to block")
+        }
+        .popover(isPresented: $blocklist.value, arrowEdge: .bottom) { BlockPickerView() }
+        .transition(.opacity)
+    }
+
+    private var blockPillText: String {
+        if !blocker.settings.enabled { return "Not blocking sites" }
+        if blockedCount == 0 { return "Choose sites to block" }
+        if !blocker.helperInstalled { return "Blocking needs setup" }
+        return blockedCount == 1 ? "1 site blocked" : "\(blockedCount) sites blocked"
     }
 
     private var breakTip: String {
@@ -234,11 +306,9 @@ struct MenuContentView: View {
                     .help("End session  ⌘.")
                 }
 
-                if phase == .idle && effectsEnabled {
-                    Label("Focus mode", systemImage: "moon.fill")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 4)
+                if phase == .idle {
+                    blockButton
+                        .padding(.leading, 2)
                         .transition(.opacity)
                 }
             }

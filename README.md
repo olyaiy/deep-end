@@ -67,6 +67,23 @@ for a display unplugged mid-session (when it reconnects). A display whose curren
 wallpaper isn't a plain image file (e.g. a dynamic or aerial one) is left alone,
 since it couldn't be put back exactly.
 
+## Site blocking
+
+Click the shield next to **Start**, or the "sites blocked" pill during a session, to pick what's blocked:
+built-in categories (Social, Video, News, Shopping, Games, Sports, Chat), with any single site switched
+off, plus your own categories and sites. Blocking runs only during focus sessions, not breaks.
+
+How it works: blocked domains (plus their `www.`, `m.` and `mobile.` variants) go into a marked section
+of `/etc/hosts` and come out when the session ends, or the next time the app launches if it was killed.
+Editing `/etc/hosts` needs root, so **Set Up…** in the picker asks for your password once to install:
+
+- `/usr/local/libexec/deepwork-block`, a root-owned script that only writes `0.0.0.0 <domain>` lines
+  between its own markers (input is validated as domain names)
+- `/etc/sudoers.d/deepworktimer`, letting your user run only that script without a password
+
+To uninstall: `sudo rm /usr/local/libexec/deepwork-block /etc/sudoers.d/deepworktimer`.
+Already-open tabs may keep working until reloaded, since browsers cache DNS briefly.
+
 ## Layout
 
 | File | What it does |

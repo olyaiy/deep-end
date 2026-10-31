@@ -47,6 +47,12 @@ enum DesignPreview {
         let content = HStack(spacing: 0) {
             column(.light)
             column(.dark)
+            VStack(spacing: 18) {
+                BlockPickerView().background(.regularMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).environment(\.colorScheme, .light)
+                BlockPickerView().background(.regularMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).environment(\.colorScheme, .dark)
+            }
+            .padding(24)
+            .background(Color(white: 0.5))
         }
 
         let hosting = NSHostingView(rootView: content)
