@@ -102,6 +102,7 @@ struct GlassButton<Label: View>: View {
             }
         }
         .buttonStyle(PressStyle())
+        .pointerStyle(.link)
     }
 
     /// Solid (not glass) so it stays red when the window is inactive. Hover just
@@ -153,5 +154,6 @@ struct IconButton: View {
             }
         }
         .buttonStyle(PressStyle())
+        .pointerStyle(.link)
     }
 }

@@ -79,6 +79,7 @@ struct QuickSettingsView: View {
                         .contentShape(RoundedRectangle(cornerRadius: 10))
                     }
                     .buttonStyle(PressStyle())
+                    .pointerStyle(.link)
                     .accessibilityLabel("\(option.title) appearance")
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
@@ -131,6 +132,7 @@ private struct MiniStepper: View {
                 .contentShape(Circle())
         }
         .buttonStyle(PressStyle())
+        .pointerStyle(enabled ? .link : nil)
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.35)
     }

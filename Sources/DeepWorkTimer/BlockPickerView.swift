@@ -127,6 +127,7 @@ struct BlockPickerView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .pointerStyle(.link)
             }
         }
     }
@@ -191,6 +192,7 @@ private struct CategoryRow: View {
                 .frame(height: 40)
                 .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hovered || isExpanded ? Theme.fill : .clear))
                 .contentShape(Rectangle())
+                .pointerStyle(.link)
                 .onTapGesture {
                     if isExpanded { ui.expanded.remove(category.id) } else { ui.expanded.insert(category.id) }
                 }
@@ -262,6 +264,7 @@ private struct CheckToggle: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressStyle())
+        .pointerStyle(.link)
     }
 }
 
@@ -297,6 +300,7 @@ private struct SiteChip: View {
             .background(Capsule().fill(isOn ? tint.opacity(hovered ? 0.18 : 0.11) : Theme.fill))
             .overlay(Capsule().strokeBorder(isOn ? tint.opacity(0.25) : .clear))
             .contentShape(Capsule())
+            .pointerStyle(onTap != nil ? .link : nil)
             .onTapGesture { onTap?() }
         }
     }
