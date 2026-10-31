@@ -115,8 +115,16 @@ final class TimerModel: ObservableObject {
 
     /// Lengthen or shorten the running phase. Never drops below one minute left.
     func adjust(minutes: Int) {
+        adjust(by: TimeInterval(minutes * 60))
+    }
+
+    /// Set the time left in the running phase (dragging the dial).
+    func setRemaining(_ seconds: TimeInterval) {
+        adjust(by: seconds - remaining)
+    }
+
+    private func adjust(by delta: TimeInterval) {
         guard phase != .idle else { return }
-        let delta = TimeInterval(minutes * 60)
         let newRemaining = max(60, remaining + delta)
         let applied = newRemaining - remaining
         if pausedRemaining != nil {

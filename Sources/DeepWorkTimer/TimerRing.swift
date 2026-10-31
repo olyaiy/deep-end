@@ -1,51 +1,41 @@
 import SwiftUI
 
-/// The timer ring. It shows time remaining (it drains as the session runs).
-/// While idle it's a dial: drag around it to set the length.
+/// The dial: 60 tick marks like the Apple Watch timer. Lit ticks show the time
+/// left. When `onDrag` is set it shows a knob and reports drags as a fraction (0...1).
 struct TimerRing: View {
-    /// 0...1 portion of the ring that's filled.
+    /// 0...1 portion of the dial that's lit.
     var fraction: Double
-    /// When set, the ring shows a knob and reports drags as a fraction (0...1).
+    var tint: Color = Theme.red
     var onDrag: ((Double) -> Void)?
+    /// Distance before a drag registers. Keeps a stray click from changing a running timer.
+    var dragThreshold: CGFloat = 0
 
     var body: some View {
         Hoverable { hovered in
             GeometryReader { geo in
                 let editable = onDrag != nil
-                let lineWidth: CGFloat = editable && hovered ? 9 : 7
                 let size = min(geo.size.width, geo.size.height)
-                let radius = (size - 9) / 2
+                let radius = size / 2
                 let f = max(0, min(1, fraction))
 
                 ZStack {
-                    // Soft red glow behind everything, for warmth and for the glass to pick up.
-                    Circle()
-                        .fill(Theme.red.opacity(0.10))
-                        .blur(radius: 28)
-                        .scaleEffect(0.95)
-
-                    Circle()
-                        .stroke(Theme.track, lineWidth: lineWidth)
-                        .frame(width: radius * 2, height: radius * 2)
-
-                    arc(f)
-                        .stroke(Theme.red, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                        .blur(radius: 6)
-                        .opacity(0.35)
-                        .frame(width: radius * 2, height: radius * 2)
-
-                    arc(f)
-                        .stroke(Theme.redGradient, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                        .frame(width: radius * 2, height: radius * 2)
+                    Ticks(major: false, from: f, to: 1)
+                        .stroke(.secondary.opacity(0.3), style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                    Ticks(major: true, from: f, to: 1)
+                        .stroke(.secondary.opacity(0.6), style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
+                    Ticks(major: false, from: 0, to: f)
+                        .stroke(tint, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                    Ticks(major: true, from: 0, to: f)
+                        .stroke(tint, style: StrokeStyle(lineWidth: 2.4, lineCap: .round))
 
                     if editable {
-                        let knob: CGFloat = hovered ? 20 : 15
+                        let knob: CGFloat = hovered ? 14 : 11
                         Circle()
-                            .fill(.white)
+                            .fill(Theme.knob)
+                            .overlay(Circle().stroke(tint, lineWidth: 2))
                             .frame(width: knob, height: knob)
-                            .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
-                            .overlay(Circle().fill(Theme.red).frame(width: hovered ? 6 : 0, height: hovered ? 6 : 0))
-                            .offset(y: -radius)
+                            .shadow(color: .black.opacity(0.2), radius: 2, y: 1)
+                            .offset(y: -(radius - 9))
                             .rotationEffect(.degrees(f * 360))
                     }
                 }
@@ -54,7 +44,7 @@ struct TimerRing: View {
                 .contentShape(Circle())
                 .pointerStyle(editable ? .grabIdle : nil)
                 .gesture(
-                    DragGesture(minimumDistance: 0)
+                    DragGesture(minimumDistance: dragThreshold)
                         .onChanged { value in
                             guard let onDrag else { return }
                             let dx = value.location.x - geo.size.width / 2
@@ -71,9 +61,27 @@ struct TimerRing: View {
             }
         }
     }
+}
 
-    private func arc(_ f: Double) -> some Shape {
-        Circle().trim(from: 0, to: f).rotation(.degrees(-90))
+/// The minor (every minute) or major (every 5) ticks whose positions fall in from..<to.
+private struct Ticks: Shape {
+    let major: Bool
+    var from: Double
+    var to: Double
+
+    func path(in rect: CGRect) -> Path {
+        let c = CGPoint(x: rect.midX, y: rect.midY)
+        let r = min(rect.width, rect.height) / 2
+        let start = Int((from * 60).rounded()), end = Int((to * 60).rounded())
+        var path = Path()
+        guard start < end else { return path }
+        for i in start..<end where (i % 5 == 0) == major {
+            let a = Double(i) / 60 * 2 * .pi
+            let outer = r - 3, inner = r - (major ? 15 : 10)
+            path.move(to: CGPoint(x: c.x + outer * sin(a), y: c.y - outer * cos(a)))
+            path.addLine(to: CGPoint(x: c.x + inner * sin(a), y: c.y - inner * cos(a)))
+        }
+        return path
     }
 }
 

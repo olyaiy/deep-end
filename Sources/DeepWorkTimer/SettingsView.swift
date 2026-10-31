@@ -13,7 +13,6 @@ enum SettingsWindow {
             window.title = "Deep Work Timer"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
-            window.appearance = NSAppearance(named: .aqua)
             window.setContentSize(NSSize(width: 460, height: 600))
             window.center()
             self.window = window

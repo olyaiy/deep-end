@@ -35,31 +35,24 @@ enum DesignPreview {
     static func showWindow() {
         NSApp.setActivationPolicy(.regular)
         let models = scenarios()
-        let content = VStack(spacing: 22) {
-            HStack(spacing: 22) {
-                popover(models[0].1)
-                popover(models[1].1)
+        func column(_ scheme: ColorScheme) -> some View {
+            VStack(spacing: 18) {
+                ForEach(models.indices, id: \.self) { popover(models[$0].1) }
+                ToastView(transition: .workDone(breakMinutes: 10, longBreak: false))
             }
-            HStack(spacing: 22) {
-                popover(models[2].1)
-                popover(models[3].1)
-            }
-            ToastView(transition: .workDone(breakMinutes: 10, longBreak: false))
-                .background(
-                    LinearGradient(colors: [Color(red: 0.95, green: 0.55, blue: 0.45), Color(red: 0.55, green: 0.65, blue: 0.95)],
-                                   startPoint: .leading, endPoint: .trailing)
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                )
+            .padding(24)
+            .background(scheme == .dark ? Color(white: 0.1) : Color(white: 0.9))
+            .environment(\.colorScheme, scheme)
         }
-        .padding(28)
-        .background(Color(white: 0.9))
-        .environment(\.colorScheme, .light)
+        let content = HStack(spacing: 0) {
+            column(.light)
+            column(.dark)
+        }
 
         let hosting = NSHostingView(rootView: content)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "Deep Work Timer — Design Preview"
-        window.appearance = NSAppearance(named: .aqua)
         window.contentView = hosting
         window.center()
         window.isReleasedWhenClosed = false
@@ -69,11 +62,11 @@ enum DesignPreview {
         window.makeKeyAndOrderFront(nil)
     }
 
-    /// Mimics the menu bar popover's rounded, light window around the content.
+    /// Mimics the menu bar popover's rounded window around the content.
     private static func popover(_ model: TimerModel) -> some View {
         MenuContentView()
             .environmentObject(model)
-            .background(.white)
+            .background(.regularMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .shadow(color: .black.opacity(0.15), radius: 14, y: 6)
     }

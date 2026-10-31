@@ -1,78 +1,86 @@
 import SwiftUI
 
-/// The menu bar popover: the ring on the left, what you need right now on the
-/// right, and today's progress along the bottom.
+/// The menu bar popover: the dial on the left, three rows on the right
+/// (title, task or status, buttons). Every state keeps the same three rows so
+/// Start turns into Pause in place without the layout jumping.
 struct MenuContentView: View {
     @EnvironmentObject private var timer: TimerModel
     @AppStorage(Prefs.Key.workMinutes) private var workMinutes = 50
-    @AppStorage(Prefs.Key.sessionsPerLongBreak) private var sessionsPerLongBreak = 3
     @AppStorage(Prefs.Key.dailyGoalMinutes) private var goalMinutes = 240
+    @AppStorage(Prefs.Key.effectsEnabled) private var effectsEnabled = true
     @Namespace private var glass
 
     private var phase: Phase { timer.phase }
-    private static let presets = [25, 50, 90]
-    private static let ringSize: CGFloat = 156
+    private var isBreak: Bool { phase == .shortBreak || phase == .longBreak }
+    private var accent: Color { isBreak ? Theme.green : Theme.red }
+    private static let dialSize: CGFloat = 148
+    /// Minutes around the whole dial.
+    private static let dialMinutes = Double(Prefs.maxWorkMinutes)
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 22) {
-                ring
-                    .frame(width: Self.ringSize, height: Self.ringSize)
-                controls
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: Self.ringSize)
+        HStack(spacing: 20) {
+            dial
+                .frame(width: Self.dialSize, height: Self.dialSize)
+            VStack(alignment: .leading, spacing: 12) {
+                titleBlock
+                middleRow
+                actions
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
-            .padding(.bottom, 16)
-
-            today
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Theme.fill.opacity(0.6))
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: 440)
+        .padding(20)
+        .frame(width: 400)
         .tint(Theme.red)
-        .environment(\.colorScheme, .light)
-        .preferredColorScheme(.light)
         .animation(Theme.morph, value: phase)
         .animation(Theme.morph, value: timer.isPaused)
-        .background {
-            // ⌘Q while the popover is open.
-            Button("") { NSApp.terminate(nil) }
-                .keyboardShortcut("q", modifiers: .command)
-                .opacity(0)
-                .allowsHitTesting(false)
+        .background { hiddenShortcuts }
+        .contextMenu {
+            Button("Settings…") { SettingsWindow.show() }
+            Divider()
+            Button("Quit Deep Work Timer") { NSApp.terminate(nil) }
         }
     }
 
-    // MARK: Ring
+    // MARK: Dial
 
-    private var ring: some View {
+    private var dial: some View {
         ZStack {
-            TimerRing(
-                fraction: phase == .idle
-                    ? Double(workMinutes) / Double(Prefs.maxWorkMinutes)
-                    : 1 - timer.progress,
-                onDrag: phase == .idle ? setDuration : nil
-            )
-            .animation(phase == .idle ? .interactiveSpring : .linear(duration: 1), value: timer.progress)
-            .animation(.interactiveSpring, value: workMinutes)
+            TimerRing(fraction: dialFraction, tint: accent, onDrag: dialDrag, dragThreshold: phase == .idle ? 0 : 4)
+                .opacity(timer.isPaused ? 0.5 : 1)
+                .animation(.interactiveSpring, value: workMinutes)
 
-            VStack(spacing: 3) {
+            VStack(spacing: 4) {
                 Text(timeText)
                     .font(.system(size: 34, weight: .light))
                     .monospacedDigit()
                     .contentTransition(.numericText(countsDown: phase != .idle))
                     .animation(.snappy, value: timeText)
-                    .opacity(timer.isPaused ? 0.35 : 1)
-                Text(ringCaption)
-                    .font(.system(size: 11, weight: .medium))
+                    .opacity(timer.isPaused ? 0.4 : 1)
+                Text(dialCaption)
+                    .font(.system(size: 9.5, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                    .tracking(0.6)
+                    .tracking(0.8)
             }
             .allowsHitTesting(false)
+        }
+    }
+
+    /// Focus time is shown on a fixed 120-minute face, like a kitchen timer, so
+    /// the dial you set is the dial that drains. Breaks fill the whole face.
+    private var dialFraction: Double {
+        switch phase {
+        case .idle: Double(workMinutes) / Self.dialMinutes
+        case .work: timer.remaining / (Self.dialMinutes * 60)
+        case .shortBreak, .longBreak: 1 - timer.progress
+        }
+    }
+
+    private var dialDrag: ((Double) -> Void)? {
+        switch phase {
+        case .idle: setDuration
+        case .work: setRemaining
+        case .shortBreak, .longBreak: nil
         }
     }
 
@@ -80,124 +88,117 @@ struct MenuContentView: View {
         phase == .idle ? TimerModel.format(TimeInterval(workMinutes * 60)) : timer.displayTime
     }
 
-    private var ringCaption: String {
-        if phase == .idle { return "Drag to set" }
-        return timer.isPaused ? "Paused" : "Remaining"
+    private var dialCaption: String {
+        switch phase {
+        case .idle: "Minutes"
+        case .work: timer.isPaused ? "Paused" : "Remaining"
+        case .shortBreak, .longBreak: timer.isPaused ? "Paused" : "Break"
+        }
+    }
+
+    /// Minutes for a dial position, without wrapping past 12 o'clock.
+    private func minutes(at fraction: Double, current: Int, step: Int) -> Int {
+        let max = Prefs.maxWorkMinutes
+        var minutes = Int((fraction * Self.dialMinutes / Double(step)).rounded()) * step
+        if current >= max - 20 && minutes <= 20 { minutes = max }
+        if current <= 20 && minutes >= max - 20 { minutes = step }
+        return min(max, Swift.max(step, minutes))
     }
 
     private func setDuration(_ fraction: Double) {
-        var minutes = Int((fraction * Double(Prefs.maxWorkMinutes) / 5).rounded()) * 5
-        // Don't wrap around past 12 o'clock.
-        if workMinutes >= 100 && minutes <= 20 { minutes = Prefs.maxWorkMinutes }
-        if workMinutes <= 20 && minutes >= 100 { minutes = 5 }
-        minutes = min(Prefs.maxWorkMinutes, max(5, minutes))
-        guard minutes != workMinutes else { return }
-        workMinutes = minutes
+        let new = minutes(at: fraction, current: workMinutes, step: 5)
+        guard new != workMinutes else { return }
+        workMinutes = new
         NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
     }
 
-    // MARK: Controls
+    private func setRemaining(_ fraction: Double) {
+        let current = Int((timer.remaining / 60).rounded())
+        let new = minutes(at: fraction, current: current, step: 1)
+        guard new != current else { return }
+        timer.setRemaining(TimeInterval(new * 60))
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+    }
 
-    private var controls: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            Spacer(minLength: 10)
-            middle
-            Spacer(minLength: 12)
-            actions
+    // MARK: Rows
+
+    private var titleBlock: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 19, weight: .bold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .contentTransition(.opacity)
+            Text(subtitle)
+                .font(.system(size: 12))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .contentTransition(.opacity)
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(timer.isPaused ? "Paused" : phase.label)
-                    .font(.system(size: 22, weight: .bold))
-                    .contentTransition(.opacity)
-                Text(headerCaption)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.opacity)
-            }
-            Spacer()
-            IconButton(systemImage: "gearshape", hoverRotation: 60) { SettingsWindow.show() }
-                .accessibilityLabel("Settings")
-                .keyboardShortcut(",", modifiers: .command)
-                .help("Settings  ⌘,")
-        }
-    }
-
-    private var headerCaption: String {
-        let session = "Session \(timer.sessionNumber) of \(sessionsPerLongBreak)"
-        let end = Date().addingTimeInterval(timer.remaining).formatted(date: .omitted, time: .shortened)
+    private var title: String {
         switch phase {
-        case .idle: return session
-        case .work: return timer.isPaused ? session : "\(session) · ends \(end)"
-        case .shortBreak, .longBreak: return timer.isPaused ? "Break paused" : "Back at \(end)"
+        case .idle: "Deep Work"
+        case .work: timer.intention.isEmpty ? "Deep Work" : timer.intention
+        case .shortBreak: "Break"
+        case .longBreak: "Long Break"
         }
     }
 
+    private var subtitle: String {
+        let today = "\(DailyStats.durationText(timer.today.focusSeconds)) of \(DailyStats.durationText(Double(goalMinutes * 60))) today"
+        if isBreak { return timer.isPaused ? "Break paused" : "Back at \(endTime)" }
+        return today
+    }
+
+    private var endTime: String {
+        Date().addingTimeInterval(timer.remaining).formatted(date: .omitted, time: .shortened)
+    }
+
+    /// The task field before a session; a status pill of the same size during one.
     @ViewBuilder
-    private var middle: some View {
+    private var middleRow: some View {
         switch phase {
         case .idle:
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 7) {
-                    Image(systemName: "pencil.line")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.tertiary)
-                    TextField("What are you working on?", text: $timer.intention)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                        .onSubmit { timer.startWork() }
-                }
-                .padding(.horizontal, 11)
-                .frame(height: 30)
+            TextField("What are you working on?", text: $timer.intention)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .onSubmit { timer.startWork() }
+                .padding(.horizontal, 12)
+                .frame(height: 32)
                 .background(Capsule().fill(Theme.fill))
-
-                Picker("Length", selection: $workMinutes) {
-                    ForEach(Self.presets, id: \.self) { Text("\($0) min").tag($0) }
-                    if !Self.presets.contains(workMinutes) {
-                        Text("\(workMinutes) min").tag(workMinutes)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
-
-        case .work, .shortBreak, .longBreak:
-            VStack(alignment: .leading, spacing: 9) {
-                Text(phase == .work ? (timer.intention.isEmpty ? "Heads down. You've got this." : timer.intention) : breakTip)
-                    .font(.system(size: 13, weight: phase == .work && !timer.intention.isEmpty ? .medium : .regular))
-                    .foregroundStyle(phase == .work && !timer.intention.isEmpty ? .primary : .secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                GlassEffectContainer(spacing: 6) {
-                    HStack(spacing: 6) {
-                        GlassButton(height: 28, horizontalPadding: 11, namespace: glass, action: { timer.adjust(minutes: -5) }) {
-                            Text("−5 min").font(.system(size: 11.5, weight: .medium))
-                        }
-                        .accessibilityLabel("5 minutes less")
-                        .keyboardShortcut("-", modifiers: [])
-                        .help("5 minutes less  −")
-                        GlassButton(height: 28, horizontalPadding: 11, namespace: glass, action: { timer.adjust(minutes: 5) }) {
-                            Text("+5 min").font(.system(size: 11.5, weight: .medium))
-                        }
-                        .keyboardShortcut("=", modifiers: [])
-                        .help("5 minutes more  +")
-                        GlassButton(shape: .circle, height: 28, namespace: glass, action: { timer.skip() }) {
-                            Image(systemName: "forward.end.fill").font(.system(size: 10.5, weight: .semibold))
-                        }
-                        .accessibilityLabel(phase == .work ? "Take a break" : "Skip break")
-                        .keyboardShortcut(.rightArrow, modifiers: .command)
-                        .help(phase == .work ? "End this session and take a break  ⌘→" : "Skip the rest of this break  ⌘→")
-                    }
-                }
-            }
-            .transition(.opacity.combined(with: .move(edge: .bottom)))
+        case .work:
+            statusPill(symbol: effectsEnabled ? "moon.fill" : "timer",
+                       text: timer.isPaused ? "Paused" : "Ends at \(endTime)",
+                       trailing: nil)
+        case .shortBreak, .longBreak:
+            statusPill(symbol: "cup.and.saucer.fill", text: breakTip, trailing: nil)
         }
+    }
+
+    private func statusPill(symbol: String, text: String, trailing: String?) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(accent)
+            Text(text)
+                .lineLimit(1)
+            Spacer(minLength: 6)
+            if let trailing {
+                Text(trailing)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+        .font(.system(size: 12))
+        .padding(.horizontal, 12)
+        .frame(height: 32)
+        .background(Capsule().fill(Theme.fill))
+        .transition(.opacity)
     }
 
     private var breakTip: String {
@@ -211,77 +212,90 @@ struct MenuContentView: View {
         return tips[timer.today.entries.count % tips.count]
     }
 
-    /// One red Start capsule that morphs into Cancel + Pause once a session runs.
+    /// Start, which morphs into Pause/Resume (or Skip on a break) plus ✕.
     private var actions: some View {
-        GlassEffectContainer(spacing: 10) {
-            HStack(spacing: 10) {
-                if phase != .idle {
-                    GlassButton(shape: .circle, height: 38, glassID: "cancel", namespace: glass, action: { timer.stop() }) {
-                        Image(systemName: "xmark").font(.system(size: 13, weight: .bold))
-                    }
-                    .accessibilityLabel("Cancel")
-                    .keyboardShortcut(".", modifiers: .command)
-                    .help("Cancel  ⌘.")
-                }
-
-                GlassButton(prominent: phase == .idle || timer.isPaused, height: 38, expands: true,
+        GlassEffectContainer(spacing: 8) {
+            HStack(spacing: 8) {
+                GlassButton(prominent: true, tint: isBreak ? Theme.green : nil, height: 30, horizontalPadding: 14,
                             glassID: "primary", namespace: glass, action: primaryAction) {
                     Label(primaryTitle, systemImage: primarySymbol)
+                        .font(.system(size: 12.5, weight: .semibold))
                         .contentTransition(.symbolEffect(.replace))
-                        .foregroundStyle(phase != .idle && !timer.isPaused ? AnyShapeStyle(Theme.red) : AnyShapeStyle(.white))
                 }
-                .keyboardShortcut(phase == .idle ? .defaultAction : KeyboardShortcut(.space, modifiers: []))
-                .help(phase == .idle ? "Start  ↩" : "Pause or resume  Space")
+                .keyboardShortcut(phase == .idle ? .defaultAction : phase == .work ? KeyboardShortcut(.space, modifiers: []) : nil)
+                .help(primaryHelp)
+
+                if phase != .idle {
+                    GlassButton(shape: .circle, height: 30, glassID: "cancel", namespace: glass, action: { timer.stop() }) {
+                        Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
+                    }
+                    .accessibilityLabel("End session")
+                    .keyboardShortcut(".", modifiers: .command)
+                    .help("End session  ⌘.")
+                }
+
+                if phase == .idle && effectsEnabled {
+                    Label("Focus mode", systemImage: "moon.fill")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 4)
+                        .transition(.opacity)
+                }
             }
         }
     }
 
     private var primaryTitle: String {
-        if phase == .idle { return "Start Focus" }
-        return timer.isPaused ? "Resume" : "Pause"
+        switch phase {
+        case .idle: "Start"
+        case .work: timer.isPaused ? "Resume" : "Pause"
+        case .shortBreak, .longBreak: "Skip"
+        }
     }
 
     private var primarySymbol: String {
-        if phase == .idle || timer.isPaused { return "play.fill" }
-        return "pause.fill"
+        switch phase {
+        case .idle: "play.fill"
+        case .work: timer.isPaused ? "play.fill" : "pause.fill"
+        case .shortBreak, .longBreak: "forward.end.fill"
+        }
+    }
+
+    private var primaryHelp: String {
+        switch phase {
+        case .idle: "Start  ↩"
+        case .work: "Pause or resume  Space"
+        case .shortBreak, .longBreak: "Skip the rest of this break"
+        }
     }
 
     private func primaryAction() {
-        phase == .idle ? timer.startWork() : timer.togglePause()
+        switch phase {
+        case .idle: timer.startWork()
+        case .work: timer.togglePause()
+        case .shortBreak, .longBreak: timer.skip()
+        }
     }
 
-    // MARK: Today
+    // MARK: Keyboard
 
-    private var today: some View {
-        let goal = Double(goalMinutes * 60)
-        let fraction = min(1, timer.today.focusSeconds / goal)
-        return Hoverable { hovered in
-            HStack(spacing: 10) {
-                Image(systemName: fraction >= 1 ? "checkmark.circle.fill" : "flame.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.red)
-                    .symbolEffect(.bounce, value: timer.today.sessions)
-                Text("Today")
-                    .font(.system(size: 12, weight: .semibold))
-                Text("\(DailyStats.durationText(timer.today.focusSeconds)) of \(DailyStats.durationText(goal))")
-                    .font(.system(size: 12))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Theme.track)
-                        Capsule()
-                            .fill(Theme.redGradient)
-                            .frame(width: fraction > 0 ? max(hovered ? 6 : 4, geo.size.width * fraction) : 0)
-                    }
-                }
-                .frame(height: hovered ? 6 : 4)
-                Text(timer.today.sessions == 1 ? "1 session" : "\(timer.today.sessions) sessions")
-                    .font(.system(size: 12))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+    /// Shortcuts for things that no longer have a visible button.
+    private var hiddenShortcuts: some View {
+        ZStack {
+            Button("") { SettingsWindow.show() }.keyboardShortcut(",", modifiers: .command)
+            Button("") { NSApp.terminate(nil) }.keyboardShortcut("q", modifiers: .command)
+            if phase != .idle {
+                // Not while idle: these would swallow keystrokes in the task field.
+                Button("") { timer.adjust(minutes: -5) }.keyboardShortcut("-", modifiers: [])
+                Button("") { timer.adjust(minutes: 5) }.keyboardShortcut("=", modifiers: [])
+                Button("") { timer.skip() }.keyboardShortcut(.rightArrow, modifiers: .command)
             }
-            .help("\(Int(fraction * 100))% of your daily goal")
+            if isBreak {
+                Button("") { timer.togglePause() }.keyboardShortcut(.space, modifiers: [])
+            }
         }
+        .opacity(0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }

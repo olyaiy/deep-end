@@ -1,14 +1,26 @@
 import SwiftUI
 
-/// White and red, with Liquid Glass controls.
+/// White and red (charcoal and red in dark mode), with Liquid Glass controls.
 enum Theme {
-    static let red = Color(red: 1.0, green: 0.231, blue: 0.188) // systemRed (light)
-    static let redLight = Color(red: 1.0, green: 0.42, blue: 0.36)
+    static let red = dynamic(light: 0xFF3B30, dark: 0xFF453A)
+    static let redLight = dynamic(light: 0xFF6B5C, dark: 0xFF7066)
     static let redGradient = LinearGradient(colors: [redLight, red], startPoint: .top, endPoint: .bottom)
-    static let fill = Color.black.opacity(0.05)
-    static let track = Color.black.opacity(0.07)
+    static let green = dynamic(light: 0x24A148, dark: 0x30D158)
+    static let knob = dynamic(light: 0xFFFFFF, dark: 0xF5F5F7)
+    static let fill = Color.primary.opacity(0.06)
+    static let track = Color.primary.opacity(0.08)
     static let spring = Animation.spring(response: 0.32, dampingFraction: 0.7)
     static let morph = Animation.bouncy(duration: 0.45, extraBounce: 0.05)
+
+    private static func dynamic(light: UInt32, dark: UInt32) -> Color {
+        func color(_ hex: UInt32) -> NSColor {
+            NSColor(srgbRed: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255,
+                    blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+        }
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? color(dark) : color(light)
+        })
+    }
 }
 
 extension Phase {
@@ -57,6 +69,8 @@ struct GlassButton<Label: View>: View {
     enum Shape { case capsule, circle }
 
     var prominent = false
+    /// Colour of a prominent button. Defaults to red.
+    var tint: Color?
     var shape: Shape = .capsule
     var height: CGFloat = 36
     var horizontalPadding: CGFloat = 16
@@ -79,12 +93,13 @@ struct GlassButton<Label: View>: View {
                     .frame(maxWidth: expands ? .infinity : nil)
                     // A solid red base keeps the primary action red even when the
                     // window is inactive (macOS greys out tinted glass there).
-                    .background(Capsule().fill(Theme.redGradient).opacity(prominent ? (hovered ? 1 : 0.92) : 0))
+                    .background(Capsule().fill(tint.map { AnyShapeStyle($0.gradient) } ?? AnyShapeStyle(Theme.redGradient))
+                        .opacity(prominent ? (hovered ? 1 : 0.92) : 0))
                     .contentShape(Capsule())
                     .glassEffect(.regular.interactive(), in: Capsule())
                     .glassEffectID(glassID, in: namespace)
                     .scaleEffect(hovered ? 1.035 : 1)
-                    .shadow(color: prominent ? Theme.red.opacity(hovered ? 0.35 : 0.18) : .clear, radius: hovered ? 10 : 6, y: 3)
+                    .shadow(color: prominent ? (tint ?? Theme.red).opacity(hovered ? 0.35 : 0.18) : .clear, radius: hovered ? 10 : 6, y: 3)
             }
         }
         .buttonStyle(PressStyle())

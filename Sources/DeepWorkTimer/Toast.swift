@@ -41,7 +41,6 @@ struct ToastView: View {
             .glassEffect(.regular, in: Capsule())
         }
         .padding(24) // room for the glass shadow inside the transparent window
-        .environment(\.colorScheme, .light)
     }
 
     private var icon: String {
@@ -108,7 +107,6 @@ final class ToastController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
-        panel.appearance = NSAppearance(named: .aqua)
         panel.contentView = hosting
 
         let screen = NSScreen.main ?? NSScreen.screens.first
