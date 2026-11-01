@@ -81,6 +81,19 @@ enum DesignPreview {
             .shadow(color: .black.opacity(0.15), radius: 14, y: 6)
     }
 
+    /// Plausible fake focus history for previews.
+    static func sampleHistory() -> [String: TimeInterval] {
+        var generator = SystemRandomNumberGenerator()
+        var out: [String: TimeInterval] = [:]
+        for offset in 0..<(HistoryView.weeks * 7) {
+            let date = Calendar.current.date(byAdding: .day, value: -offset, to: Date())!
+            let weekend = Calendar.current.isDateInWeekend(date)
+            guard Int.random(in: 0..<10, using: &generator) < (weekend ? 4 : 8) else { continue }
+            out[DailyStats.key(for: date)] = TimeInterval(Int.random(in: 1...20, using: &generator) * 15 * 60)
+        }
+        return out
+    }
+
     // MARK: --snapshot
 
     static func snapshotIfRequested() {
@@ -93,6 +106,8 @@ enum DesignPreview {
             (name, AnyView(MenuContentView().environmentObject(model)))
         }
         views.append(("toast", AnyView(ToastView(transition: .workDone(breakMinutes: 10, longBreak: false)))))
+        views.append(("history", AnyView(HistoryView(history: sampleHistory()))))
+        views.append(("history-dark", AnyView(HistoryView(history: sampleHistory()).background(Color(white: 0.12)).environment(\.colorScheme, .dark))))
 
         for (name, view) in views {
             let renderer = ImageRenderer(content: view.background(Color.white).environment(\.colorScheme, .light))

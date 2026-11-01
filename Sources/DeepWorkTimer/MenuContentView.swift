@@ -11,6 +11,7 @@ struct MenuContentView: View {
     @ObservedObject private var blocker = SiteBlocker.shared
     @StateObject private var blocklist = Flag()
     @StateObject private var quickSettings = Flag()
+    @StateObject private var historyShown = Flag()
     @StateObject private var timeEdit = TimeEditState()
     @FocusState private var timeFieldFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
@@ -325,7 +326,7 @@ struct MenuContentView: View {
         let plan = sessionPlan
         return Hoverable { hovered in
             HStack(spacing: 8) {
-                Text("Today").font(.system(size: 12, weight: .semibold))
+                historyButton
                 HStack(spacing: 3) {
                     Text(DailyStats.durationText(timer.today.focusSeconds))
                     Menu {
@@ -370,6 +371,29 @@ struct MenuContentView: View {
             .frame(height: 38)
             .help(planHelp(plan, fraction: fraction))
         }
+    }
+
+    /// "Today" doubles as the way into your history.
+    private var historyButton: some View {
+        Hoverable { hovered in
+            Button { historyShown.value.toggle() } label: {
+                HStack(spacing: 4) {
+                    Text("Today").font(.system(size: 12, weight: .semibold))
+                    Image(systemName: "square.grid.3x3.fill")
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundStyle(hovered || historyShown.value ? AnyShapeStyle(Theme.red) : AnyShapeStyle(.tertiary))
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(hovered ? Theme.fill : .clear))
+                .padding(.horizontal, -6)
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .pointerStyle(.link)
+            .help("Your focus history")
+        }
+        .popover(isPresented: $historyShown.value, arrowEdge: .top) { HistoryView() }
     }
 
     private var sessionPlan: SessionPlan {

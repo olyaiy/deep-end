@@ -276,7 +276,7 @@ struct DailyStats: Codable, Identifiable {
         entries = try c.decodeIfPresent([Entry].self, forKey: .entries) ?? []
     }
 
-    private static let keyFormatter: DateFormatter = {
+    static let keyFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
         return f

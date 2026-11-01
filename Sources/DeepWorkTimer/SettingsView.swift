@@ -39,6 +39,12 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("History") {
+                HistoryView()
+                    .padding(-16)
+                    .padding(.vertical, 4)
+            }
+
             Section("Timer") {
                 stepper("Focus", value: $workMinutes, in: 5...Prefs.maxWorkMinutes, step: 5) { "\($0) min" }
                 stepper("Short break", value: $shortBreakMinutes, in: 1...60) { "\($0) min" }
