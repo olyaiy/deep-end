@@ -82,14 +82,28 @@ enum DesignPreview {
     }
 
     /// Plausible fake focus history for previews.
-    static func sampleHistory() -> [String: TimeInterval] {
+    static func sampleHistory() -> [String: DailyStats] {
         var generator = SystemRandomNumberGenerator()
-        var out: [String: TimeInterval] = [:]
+        let topics = ["Phys HW", "Q4 planning doc", "Thesis chapter 3", "Refactor auth", "Reading", ""]
+        let cal = Calendar.current
+        var out: [String: DailyStats] = [:]
         for offset in 0..<(HistoryView.weeks * 7) {
-            let date = Calendar.current.date(byAdding: .day, value: -offset, to: Date())!
-            let weekend = Calendar.current.isDateInWeekend(date)
-            guard Int.random(in: 0..<10, using: &generator) < (weekend ? 4 : 8) else { continue }
-            out[DailyStats.key(for: date)] = TimeInterval(Int.random(in: 1...20, using: &generator) * 15 * 60)
+            let date = cal.date(byAdding: .day, value: -offset, to: Date())!
+            let weekend = cal.isDateInWeekend(date)
+            guard offset < 5 || Int.random(in: 0..<10, using: &generator) < (weekend ? 4 : 8) else { continue }
+            var stats = DailyStats(day: DailyStats.key(for: date))
+            var clock = cal.date(bySettingHour: 9, minute: Int.random(in: 0..<40, using: &generator), second: 0, of: date)!
+            for _ in 0..<Int.random(in: 1...4, using: &generator) {
+                let seconds = TimeInterval([25, 45, 50, 50, 90].randomElement(using: &generator)! * 60)
+                clock = clock.addingTimeInterval(seconds)
+                let completed = Int.random(in: 0..<10, using: &generator) < 8
+                let topic = offset < 7 ? topics[min(Int.random(in: 0..<9, using: &generator) / 2, topics.count - 1)] : topics.randomElement(using: &generator)!
+                stats.entries.append(.init(intention: topic, seconds: seconds, endedAt: clock, completed: completed))
+                stats.focusSeconds += seconds
+                if completed { stats.sessions += 1 }
+                clock = clock.addingTimeInterval(TimeInterval(Int.random(in: 10...90, using: &generator) * 60))
+            }
+            out[stats.day] = stats
         }
         return out
     }
@@ -106,8 +120,12 @@ enum DesignPreview {
             (name, AnyView(MenuContentView().environmentObject(model)))
         }
         views.append(("toast", AnyView(ToastView(transition: .workDone(breakMinutes: 10, longBreak: false)))))
-        views.append(("history", AnyView(HistoryView(history: sampleHistory()))))
-        views.append(("history-dark", AnyView(HistoryView(history: sampleHistory()).background(Color(white: 0.12)).environment(\.colorScheme, .dark))))
+        let sample = sampleHistory()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        views.append(("history", AnyView(HistoryView(days: sample))))
+        views.append(("history-hover", AnyView(HistoryView(days: sample, hovering: yesterday))))
+        views.append(("history-dark", AnyView(HistoryView(days: sample).background(Color(white: 0.12)).environment(\.colorScheme, .dark))))
+        views.append(("history-empty", AnyView(HistoryView(days: [:]))))
 
         for (name, view) in views {
             let renderer = ImageRenderer(content: view.background(Color.white).environment(\.colorScheme, .light))
