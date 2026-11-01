@@ -13,6 +13,7 @@ struct MenuContentView: View {
     @StateObject private var quickSettings = Flag()
     @StateObject private var timeEdit = TimeEditState()
     @FocusState private var timeFieldFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
     @Namespace private var glass
 
     private var phase: Phase { timer.phase }
@@ -41,6 +42,10 @@ struct MenuContentView: View {
             todayFooter
         }
         .frame(width: 400)
+        // The menu bar window is translucent; in light mode a dark wallpaper (like
+        // the focus one) shows through as murky grey. A mostly-white layer keeps
+        // contrast crisp while letting a hint of the desktop through.
+        .background(colorScheme == .light ? Color.white.opacity(0.86) : .clear)
         .overlay(alignment: .topTrailing) { settingsButton.padding(8) }
         .tint(Theme.red)
         .animation(Theme.morph, value: phase)
