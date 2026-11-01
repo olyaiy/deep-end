@@ -38,6 +38,9 @@ final class TimerModel: ObservableObject {
     @Published private(set) var endDate: Date?
     @Published private(set) var pausedRemaining: TimeInterval?
     @Published private(set) var phaseDuration: TimeInterval = 1
+    /// A break that's earned but not started. Breaks wait for you rather than
+    /// starting on their own.
+    @Published private(set) var pendingBreak: Phase?
 
     @Published var intention = UserDefaults.standard.string(forKey: "lastIntention") ?? "" {
         didSet { UserDefaults.standard.set(intention, forKey: "lastIntention") }
@@ -92,6 +95,7 @@ final class TimerModel: ObservableObject {
     func startWork(minutes: Int? = nil) {
         if let minutes { UserDefaults.standard.set(minutes, forKey: Prefs.Key.workMinutes) }
         workStartedAt = Date()
+        pendingBreak = nil
         begin(.work, minutes: Prefs.workMinutes)
         if isLive { SessionEffects.shared.apply() }
     }
@@ -138,7 +142,23 @@ final class TimerModel: ObservableObject {
 
     /// End the current phase early and move to the next one.
     func skip() {
+        // Skipping out of focus means you asked for the break: start it now.
         finishPhase(completed: false)
+        startBreak()
+    }
+
+    func startBreak() {
+        guard let next = pendingBreak else { return }
+        pendingBreak = nil
+        begin(next, minutes: pendingBreakMinutes(next))
+    }
+
+    func skipBreak() {
+        pendingBreak = nil
+    }
+
+    func pendingBreakMinutes(_ kind: Phase? = nil) -> Int {
+        (kind ?? pendingBreak) == .longBreak ? Prefs.longBreakMinutes : Prefs.shortBreakMinutes
     }
 
     /// Stop everything and go back to idle.
@@ -147,6 +167,7 @@ final class TimerModel: ObservableObject {
             recordFocusTime(completed: false)
             if isLive { SessionEffects.shared.revert() }
         }
+        pendingBreak = nil
         reset()
     }
 
@@ -187,7 +208,8 @@ final class TimerModel: ObservableObject {
             let long = cycleCount >= Prefs.sessionsPerLongBreak
             if long { cycleCount = 0 }
             let minutes = long ? Prefs.longBreakMinutes : Prefs.shortBreakMinutes
-            begin(long ? .longBreak : .shortBreak, minutes: minutes)
+            reset()
+            pendingBreak = long ? .longBreak : .shortBreak
             if completed {
                 playSound("Glass")
                 onTransition?(.workDone(breakMinutes: minutes, longBreak: long))
@@ -229,9 +251,10 @@ final class TimerModel: ObservableObject {
     /// A frozen model for rendering snapshots of the UI.
     static func preview(
         phase: Phase, remaining: TimeInterval = 0, total: TimeInterval = 3000, paused: Bool = false,
-        cycle: Int = 0, intention: String = "", today: DailyStats, week: [DailyStats]
+        cycle: Int = 0, intention: String = "", pendingBreak: Phase? = nil, today: DailyStats, week: [DailyStats]
     ) -> TimerModel {
         let model = TimerModel(live: false)
+        model.pendingBreak = pendingBreak
         model.phase = phase
         model.phaseDuration = total
         model.cycleCount = cycle

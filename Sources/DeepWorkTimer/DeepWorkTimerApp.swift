@@ -1,34 +1,27 @@
+import AppKit
 import SwiftUI
 
+// A plain AppKit app: the menu bar item is an NSStatusItem (see MenuBarController),
+// which SwiftUI's App lifecycle would only get in the way of.
 @main
-struct DeepWorkTimerApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var timer: TimerModel
-
-    init() {
-        Prefs.registerDefaults()
-        DesignPreview.snapshotIfRequested()
-        let model = TimerModel()
-        model.onTransition = { [weak model] transition in
-            guard let model else { return }
-            ToastController.shared.show(transition, model: model)
+enum Main {
+    static func main() {
+        MainActor.assumeIsolated {
+            Prefs.registerDefaults()
+            DesignPreview.snapshotIfRequested()
+            let app = NSApplication.shared
+            let delegate = AppDelegate()
+            app.delegate = delegate
+            app.setActivationPolicy(.accessory)
+            withExtendedLifetime(delegate) { app.run() }
         }
-        _timer = StateObject(wrappedValue: model)
-    }
-
-    var body: some Scene {
-        MenuBarExtra {
-            MenuContentView()
-                .environmentObject(timer)
-        } label: {
-            MenuBarLabel(timer: timer)
-        }
-        .menuBarExtraStyle(.window)
     }
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var terminationSignal: DispatchSourceSignal?
+    private var timer: TimerModel?
+    private var menuBar: MenuBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
@@ -38,6 +31,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             Appearance.apply()
+            let timer = TimerModel()
+            let menuBar = MenuBarController(timer: timer)
+            // Pop the window open when a phase ends, without stealing the keyboard.
+            timer.onTransition = { [weak menuBar] _ in menuBar?.show(focus: false) }
+            self.timer = timer
+            self.menuBar = menuBar
             // Clean up after a crash or kill mid-session. This runs after launch
             // finishes, once macOS has reported the connected displays.
             SessionEffects.shared.revert()
@@ -63,10 +62,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         terminationSignal = source
     }
 
-    func application(_ application: NSApplication, open urls: [URL]) {
-        MainActor.assumeIsolated {
-            urls.forEach(URLCommands.handle)
-        }
+    // Take URL events directly (application(_:open:) isn't reliably called for
+    // a menu bar app with no windows).
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        NSAppleEventManager.shared().setEventHandler(
+            self, andSelector: #selector(handleURLEvent(_:reply:)),
+            forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL)
+        )
+    }
+
+    @objc private func handleURLEvent(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
+        guard let string = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
+              let url = URL(string: string) else { return }
+        MainActor.assumeIsolated { URLCommands.handle(url) }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -78,28 +86,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-struct MenuBarLabel: View {
-    @ObservedObject var timer: TimerModel
-    @AppStorage(Prefs.Key.showTimeInMenuBar) private var showTime = true
-
-    var body: some View {
-        if timer.phase == .idle {
-            Image(systemName: "timer")
-        } else {
-            HStack(spacing: 4) {
-                Image(nsImage: MenuBarIcon.ring(remaining: 1 - timer.progress, paused: timer.isPaused))
-                if showTime {
-                    Text(timer.displayTime).monospacedDigit()
-                }
-            }
-        }
-    }
-}
-
 /// `deepwork://` commands, for Shortcuts, Raycast, Alfred, or `open` in a terminal:
 ///   deepwork://start?minutes=50&intent=Write%20docs   deepwork://toggle
 ///   deepwork://pause   deepwork://resume   deepwork://stop   deepwork://skip
-///   deepwork://add?minutes=5   deepwork://subtract?minutes=5
+///   deepwork://add?minutes=5   deepwork://subtract?minutes=5   deepwork://open
 @MainActor
 enum URLCommands {
     static func handle(_ url: URL) {
@@ -126,6 +116,7 @@ enum URLCommands {
         case "skip": timer.skip()
         case "add": timer.adjust(minutes: minutes ?? 5)
         case "subtract": timer.adjust(minutes: -(minutes ?? 5))
+        case "open": MenuBarController.shared?.show()
         default: break
         }
     }

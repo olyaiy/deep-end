@@ -19,7 +19,9 @@ struct MenuContentView: View {
 
     private var phase: Phase { timer.phase }
     private var isBreak: Bool { phase == .shortBreak || phase == .longBreak }
-    private var accent: Color { isBreak ? Theme.green : Theme.red }
+    /// A session just finished and its break is waiting to be started.
+    private var breakReady: Bool { phase == .idle && timer.pendingBreak != nil }
+    private var accent: Color { isBreak || breakReady ? Theme.green : Theme.red }
     private static let dialSize: CGFloat = 148
     /// Minutes around the whole dial.
     private static let dialMinutes = Double(Prefs.maxWorkMinutes)
@@ -84,7 +86,7 @@ struct MenuContentView: View {
         .onChange(of: phase) { timeEdit.editing = false }
     }
 
-    private var timeEditable: Bool { phase == .idle || phase == .work }
+    private var timeEditable: Bool { (phase == .idle && !breakReady) || phase == .work }
 
     /// The time. Hovering shows it can be edited; clicking turns it into a field.
     private var timeLabel: some View {
@@ -180,7 +182,7 @@ struct MenuContentView: View {
     /// the dial you set is the dial that drains. Breaks fill the whole face.
     private var dialFraction: Double {
         switch phase {
-        case .idle: Double(workMinutes) / Self.dialMinutes
+        case .idle: breakReady ? 1 : Double(workMinutes) / Self.dialMinutes
         case .work: timer.remaining / (Self.dialMinutes * 60)
         case .shortBreak, .longBreak: 1 - timer.progress
         }
@@ -188,19 +190,20 @@ struct MenuContentView: View {
 
     private var dialDrag: ((Double) -> Void)? {
         switch phase {
-        case .idle: setDuration
+        case .idle: breakReady ? nil : setDuration
         case .work: setRemaining
         case .shortBreak, .longBreak: nil
         }
     }
 
     private var timeText: String {
-        phase == .idle ? TimerModel.format(TimeInterval(workMinutes * 60)) : timer.displayTime
+        if breakReady { return TimerModel.format(TimeInterval(timer.pendingBreakMinutes() * 60)) }
+        return phase == .idle ? TimerModel.format(TimeInterval(workMinutes * 60)) : timer.displayTime
     }
 
     private var dialCaption: String {
         switch phase {
-        case .idle: "Minutes"
+        case .idle: breakReady ? "Break" : "Minutes"
         case .work: timer.isPaused ? "Paused" : "Remaining"
         case .shortBreak, .longBreak: timer.isPaused ? "Paused" : "Break"
         }
@@ -252,7 +255,7 @@ struct MenuContentView: View {
 
     private var title: String {
         switch phase {
-        case .idle: "Deep Work"
+        case .idle: breakReady ? (timer.pendingBreak == .longBreak ? "Long break time" : "Break time") : "Deep Work"
         case .work: timer.intention.isEmpty ? "Deep Work" : timer.intention
         case .shortBreak: "Break"
         case .longBreak: "Long Break"
@@ -262,7 +265,7 @@ struct MenuContentView: View {
     /// Today's total lives in the footer, so this only says what's next.
     private var subtitle: String? {
         switch phase {
-        case .idle: nil
+        case .idle: breakReady ? "Session done. Nice work." : nil
         case .work: timer.isPaused ? "Paused" : "Ends \(endTime)"
         case .shortBreak, .longBreak: timer.isPaused ? "Break paused" : "Back at \(endTime)"
         }
@@ -276,6 +279,8 @@ struct MenuContentView: View {
     @ViewBuilder
     private var middleRow: some View {
         switch phase {
+        case .idle where breakReady:
+            statusPill(symbol: "cup.and.saucer.fill", text: breakTip, trailing: nil)
         case .idle:
             TextField("What are you working on?", text: $timer.intention)
                 .textFieldStyle(.plain)
@@ -527,7 +532,7 @@ struct MenuContentView: View {
     private var actions: some View {
         GlassEffectContainer(spacing: 8) {
             HStack(spacing: 8) {
-                GlassButton(prominent: true, tint: isBreak ? Theme.green : nil, height: 30, horizontalPadding: 14,
+                GlassButton(prominent: true, tint: isBreak || breakReady ? Theme.green : nil, height: 30, horizontalPadding: 14,
                             glassID: "primary", namespace: glass, action: primaryAction) {
                     Label(primaryTitle, systemImage: primarySymbol)
                         .font(.system(size: 12.5, weight: .semibold))
@@ -545,7 +550,12 @@ struct MenuContentView: View {
                     .help("End session  ⌘.")
                 }
 
-                if phase == .idle {
+                if breakReady {
+                    GlassButton(height: 30, horizontalPadding: 14, glassID: "cancel", namespace: glass, action: { timer.skipBreak() }) {
+                        Text("Skip").font(.system(size: 12.5, weight: .semibold))
+                    }
+                    .help("Skip the break and get ready for the next session")
+                } else if phase == .idle {
                     blockButton
                         .padding(.leading, 2)
                         .transition(.opacity)
@@ -556,7 +566,7 @@ struct MenuContentView: View {
 
     private var primaryTitle: String {
         switch phase {
-        case .idle: "Start"
+        case .idle: breakReady ? "Start Break" : "Start"
         case .work: timer.isPaused ? "Resume" : "Pause"
         case .shortBreak, .longBreak: "Skip"
         }
@@ -564,7 +574,7 @@ struct MenuContentView: View {
 
     private var primarySymbol: String {
         switch phase {
-        case .idle: "play.fill"
+        case .idle: breakReady ? "cup.and.saucer.fill" : "play.fill"
         case .work: timer.isPaused ? "play.fill" : "pause.fill"
         case .shortBreak, .longBreak: "forward.end.fill"
         }
@@ -572,7 +582,7 @@ struct MenuContentView: View {
 
     private var primaryHelp: String {
         switch phase {
-        case .idle: "Start  ↩"
+        case .idle: breakReady ? "Start your break  ↩" : "Start  ↩"
         case .work: "Pause or resume  Space"
         case .shortBreak, .longBreak: "Skip the rest of this break"
         }
@@ -580,7 +590,7 @@ struct MenuContentView: View {
 
     private func primaryAction() {
         switch phase {
-        case .idle: timer.startWork()
+        case .idle: breakReady ? timer.startBreak() : timer.startWork()
         case .work: timer.togglePause()
         case .shortBreak, .longBreak: timer.skip()
         }

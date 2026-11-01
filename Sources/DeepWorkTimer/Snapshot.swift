@@ -24,6 +24,8 @@ enum DesignPreview {
                               intention: "Write the Q4 planning doc", today: today, week: week)),
             ("paused", .preview(phase: .work, remaining: 1203, total: 3000, paused: true, cycle: 2,
                                 intention: "Write the Q4 planning doc", today: today, week: week)),
+            ("break-ready", .preview(phase: .idle, cycle: 2, intention: "Write the Q4 planning doc", pendingBreak: .shortBreak,
+                                     today: today, week: week)),
             ("break", .preview(phase: .shortBreak, remaining: 412, total: 600, cycle: 1, today: today, week: week)),
         ]
     }
@@ -38,7 +40,6 @@ enum DesignPreview {
         func column(_ scheme: ColorScheme) -> some View {
             VStack(spacing: 18) {
                 ForEach(models.indices, id: \.self) { popover(models[$0].1) }
-                ToastView(transition: .workDone(breakMinutes: 10, longBreak: false))
             }
             .padding(24)
             .background(scheme == .dark ? Color(white: 0.1) : Color(white: 0.9))
@@ -119,7 +120,6 @@ enum DesignPreview {
         var views: [(String, AnyView)] = scenarios().map { name, model in
             (name, AnyView(MenuContentView().environmentObject(model)))
         }
-        views.append(("toast", AnyView(ToastView(transition: .workDone(breakMinutes: 10, longBreak: false)))))
         let sample = sampleHistory()
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
         views.append(("history", AnyView(HistoryView(days: sample))))

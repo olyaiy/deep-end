@@ -9,7 +9,7 @@ stop, or the app quits) everything goes back.
 - "What are you working on?" intention, logged with each session
 - Work → break cycle with a long break every N sessions (default 50 / 10 / 20, long break every 3)
 - ±5 min mid-session, pause, skip, stop
-- A floating banner + sound when a phase ends (works even when Focus silences notifications)
+- When a session ends, the menu bar window opens on its own (with a sound) and your break waits for you to start it
 - Today's focus time vs. a daily goal
 - A standard macOS Settings window
 - Focus mode on/off via Shortcuts, custom or generated wallpaper
@@ -27,6 +27,7 @@ open "deepwork://start?minutes=50&intent=Write%20the%20doc"
 open "deepwork://toggle"        # start, or pause/resume
 open "deepwork://pause"         # also: resume, stop, skip
 open "deepwork://add?minutes=10"   # also: subtract
+open "deepwork://open"          # show the menu bar window
 ```
 
 ## Previewing the UI
@@ -88,12 +89,12 @@ Already-open tabs may keep working until reloaded, since browsers cache DNS brie
 
 | File | What it does |
 |---|---|
-| `DeepWorkTimerApp.swift` | App entry, menu bar label, `deepwork://` commands |
+| `DeepWorkTimerApp.swift` | App entry, `deepwork://` commands |
 | `TimerModel.swift` | Phases, countdown (end-date based, survives sleep), stats, alerts |
 | `SessionEffects.swift` | Focus via Shortcuts, wallpaper swap/restore, default wallpaper |
 | `MenuContentView.swift` | The popover |
 | `SettingsView.swift` | Settings window |
 | `Theme.swift`, `TimerRing.swift` | Colors, buttons, segmented control, the ring, menu bar icon |
-| `Toast.swift` | Floating banner when a phase ends |
+| `MenuBarController.swift` | Menu bar item and its window (opens itself when a phase ends) |
 | `Snapshot.swift` | `--snapshot` UI renderer |
 | `Prefs.swift` | UserDefaults keys and defaults |
