@@ -26,9 +26,10 @@ rm -rf "$HELPER_OUT"
 mkdir -p "$HELPER_OUT/Contents/MacOS"
 cp .build/release/DeepWorkFocus "$HELPER_OUT/Contents/MacOS/DeepWorkFocus"
 cp Resources/FocusHelper-Info.plist "$HELPER_OUT/Contents/Info.plist"
-# Fingerprint of the unsigned binary (signing isn't byte-for-byte repeatable).
+# Fingerprint of the helper's source: its binary isn't byte-for-byte repeatable
+# across builds, and reinstalling it would cost its Full Disk Access grant.
 mkdir -p "$HELPER_OUT/Contents/Resources"
-shasum -a 256 .build/release/DeepWorkFocus Resources/FocusHelper-Info.plist | cut -d' ' -f1 > "$HELPER_OUT/Contents/Resources/build-id"
+cat Sources/DeepWorkFocus/*.swift Resources/FocusHelper-Info.plist | shasum -a 256 | cut -d' ' -f1 > "$HELPER_OUT/Contents/Resources/build-id"
 codesign --force --sign - "$HELPER_OUT" >/dev/null
 
 if [[ "${1:-}" == "--no-install" ]]; then exit 0; fi
