@@ -29,13 +29,13 @@ struct SettingsView: View {
     @AppStorage(Prefs.Key.sessionsPerLongBreak) private var sessionsPerLongBreak = 3
     @AppStorage(Prefs.Key.dailyGoalMinutes) private var dailyGoalMinutes = 240
     @AppStorage(Prefs.Key.effectsEnabled) private var effectsEnabled = true
-    @AppStorage(Prefs.Key.focusOnShortcut) private var focusOnShortcut = "Deep Work On"
-    @AppStorage(Prefs.Key.focusOffShortcut) private var focusOffShortcut = "Deep Work Off"
+    @AppStorage(Prefs.Key.focusMode) private var focusMode = FocusController.doNotDisturb
     @AppStorage(Prefs.Key.wallpaperPath) private var wallpaperPath = ""
     @AppStorage(Prefs.Key.playSound) private var playSound = true
     @AppStorage(Prefs.Key.showTimeInMenuBar) private var showTimeInMenuBar = true
 
     @StateObject private var state = SettingsState()
+    @ObservedObject private var focus = FocusController.shared
 
     var body: some View {
         Form {
@@ -56,8 +56,13 @@ struct SettingsView: View {
             Section {
                 Toggle("Turn on Focus and change wallpaper", isOn: $effectsEnabled)
                 if effectsEnabled {
-                    shortcutPicker("Turn Focus on with", selection: $focusOnShortcut)
-                    shortcutPicker("Turn Focus off with", selection: $focusOffShortcut)
+                    Picker("Focus mode", selection: $focusMode) {
+                        ForEach(focus.modes) { Text($0.name).tag($0.id) }
+                        if !focus.modes.contains(where: { $0.id == focusMode }) {
+                            Text(focusMode).tag(focusMode)
+                        }
+                    }
+                    focusStatus
                     LabeledContent("Wallpaper") {
                         HStack(spacing: 10) {
                             if let thumbnail = WallpaperThumbnail.image(for: Prefs.wallpaperURL ?? DefaultWallpaper.url()) {
@@ -79,11 +84,8 @@ struct SettingsView: View {
             } header: {
                 Text("During Focus")
             } footer: {
-                if effectsEnabled, !state.shortcuts.isEmpty, missingShortcut {
-                    Text("A selected shortcut doesn't exist yet. In the Shortcuts app, create one with a “Set Focus” action.")
-                        .foregroundStyle(Theme.red)
-                } else {
-                    Text("Focus modes are switched with Shortcuts, since macOS has no direct way to do it.")
+                if effectsEnabled {
+                    Text("Only the Focus the timer turned on is switched off afterwards; one you set yourself is left alone.")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -111,7 +113,7 @@ struct SettingsView: View {
         .tint(Theme.red)
         .frame(width: 460)
         .frame(minHeight: 560)
-        .task { state.shortcuts = await ShortcutRunner.list() }
+        .onAppear { focus.refresh() }
     }
 
     private func stepper(_ title: String, value: Binding<Int>, in range: ClosedRange<Int>, step: Int = 1,
@@ -123,18 +125,41 @@ struct SettingsView: View {
         }
     }
 
-    private var missingShortcut: Bool {
-        [focusOnShortcut, focusOffShortcut].contains { !$0.isEmpty && !state.shortcuts.contains($0) }
-    }
-
-    private func shortcutPicker(_ title: String, selection: Binding<String>) -> some View {
-        // Keep the current value selectable even if the shortcut doesn't exist yet.
-        let options = Array(Set(state.shortcuts + [selection.wrappedValue]).subtracting([""]))
-            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-        return Picker(title, selection: selection) {
-            Text("None").tag("")
-            Divider()
-            ForEach(options, id: \.self) { Text($0).tag($0) }
+    /// Whether the Focus helper can do its job, and how to fix it if not.
+    @ViewBuilder
+    private var focusStatus: some View {
+        switch focus.state {
+        case .checking:
+            LabeledContent("Focus control") { ProgressView().controlSize(.small) }
+        case .ready:
+            LabeledContent("Focus control") {
+                Label("Ready", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            }
+        case .needsAccess:
+            VStack(alignment: .leading, spacing: 8) {
+                LabeledContent("Focus control") {
+                    Label("Needs Full Disk Access", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                }
+                Text("Click Open Settings, then drag “Deep Work Focus” from the Finder window into the Full Disk Access list and switch it on. It's a small helper that only switches Focus modes.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Open Settings") { focus.openFullDiskAccessSettings() }
+                    Button("Check Again") { focus.refresh() }
+                }
+            }
+        case .missingHelper:
+            LabeledContent("Focus control") {
+                Text("Helper not installed. Run build.sh.").foregroundStyle(.secondary)
+            }
+        case .failed(let message):
+            LabeledContent("Focus control") {
+                HStack {
+                    Text(message).foregroundStyle(.secondary).lineLimit(2)
+                    Button("Retry") { focus.refresh() }
+                }
+            }
         }
     }
 
@@ -151,7 +176,6 @@ struct SettingsView: View {
 
 @MainActor
 final class SettingsState: ObservableObject {
-    @Published var shortcuts: [String] = []
     @Published private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     func setLaunchAtLogin(_ enabled: Bool) {

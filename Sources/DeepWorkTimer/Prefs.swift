@@ -9,8 +9,7 @@ enum Prefs {
         static let sessionsPerLongBreak = "sessionsPerLongBreak"
         static let dailyGoalMinutes = "dailyGoalMinutes"
         static let effectsEnabled = "effectsEnabled"
-        static let focusOnShortcut = "focusOnShortcut"
-        static let focusOffShortcut = "focusOffShortcut"
+        static let focusMode = "focusMode"
         static let wallpaperPath = "wallpaperPath"
         static let playSound = "playSound"
         static let showTimeInMenuBar = "showTimeInMenuBar"
@@ -28,8 +27,7 @@ enum Prefs {
             Key.sessionsPerLongBreak: 3,
             Key.dailyGoalMinutes: 240,
             Key.effectsEnabled: true,
-            Key.focusOnShortcut: "Deep Work On",
-            Key.focusOffShortcut: "Deep Work Off",
+            Key.focusMode: "com.apple.donotdisturb.mode.default",
             Key.wallpaperPath: "",
             Key.playSound: true,
             Key.showTimeInMenuBar: true,
@@ -45,8 +43,8 @@ enum Prefs {
     static var sessionsPerLongBreak: Int { max(1, d.integer(forKey: Key.sessionsPerLongBreak)) }
     static var dailyGoalMinutes: Int { max(15, d.integer(forKey: Key.dailyGoalMinutes)) }
     static var effectsEnabled: Bool { d.bool(forKey: Key.effectsEnabled) }
-    static var focusOnShortcut: String { d.string(forKey: Key.focusOnShortcut) ?? "" }
-    static var focusOffShortcut: String { d.string(forKey: Key.focusOffShortcut) ?? "" }
+    /// Identifier of the Focus mode to turn on, e.g. com.apple.focus.work.
+    static var focusMode: String { d.string(forKey: Key.focusMode) ?? "com.apple.donotdisturb.mode.default" }
     static var playSound: Bool { d.bool(forKey: Key.playSound) }
 
     /// The user's chosen wallpaper, or nil to use the generated default.

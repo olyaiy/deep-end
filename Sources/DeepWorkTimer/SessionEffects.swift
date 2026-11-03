@@ -50,7 +50,7 @@ final class SessionEffects {
             }
         }
 
-        ShortcutRunner.run(Prefs.focusOnShortcut)
+        FocusController.shared.turnOn()
     }
 
     func revert() {
@@ -58,7 +58,7 @@ final class SessionEffects {
         let wasActive = defaults.bool(forKey: activeKey)
         restoreWallpapers()
         defaults.set(false, forKey: activeKey)
-        if wasActive { ShortcutRunner.run(Prefs.focusOffShortcut) }
+        if wasActive { FocusController.shared.turnOff() }
     }
 
     /// Put back any saved originals for the screens connected right now.
@@ -106,41 +106,6 @@ final class SessionEffects {
 extension NSScreen {
     var displayID: String? {
         (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.stringValue
-    }
-}
-
-/// Runs Shortcuts by name via the `shortcuts` CLI. This is how we toggle Focus
-/// modes, since macOS has no public API for it.
-enum ShortcutRunner {
-    private static let cli = URL(fileURLWithPath: "/usr/bin/shortcuts")
-
-    static func run(_ name: String) {
-        let name = name.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty else { return }
-        let process = Process()
-        process.executableURL = cli
-        process.arguments = ["run", name]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        try? process.run()
-    }
-
-    static func list() async -> [String] {
-        await Task.detached {
-            let process = Process()
-            let pipe = Pipe()
-            process.executableURL = cli
-            process.arguments = ["list"]
-            process.standardOutput = pipe
-            process.standardError = FileHandle.nullDevice
-            guard (try? process.run()) != nil else { return [] }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            return String(decoding: data, as: UTF8.self)
-                .split(separator: "\n")
-                .map(String.init)
-                .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
-        }.value
     }
 }
 

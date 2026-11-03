@@ -37,6 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             timer.onTransition = { [weak menuBar] _ in menuBar?.show(focus: false) }
             self.timer = timer
             self.menuBar = menuBar
+            // Sets up the Focus helper's LaunchAgent and checks it has access.
+            FocusController.shared.refresh()
             // Clean up after a crash or kill mid-session. This runs after launch
             // finishes, once macOS has reported the connected displays.
             SessionEffects.shared.revert()
