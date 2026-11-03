@@ -14,6 +14,9 @@ struct MenuContentView: View {
     @StateObject private var quickSettings = Flag()
     @StateObject private var historyShown = Flag()
     @StateObject private var timeEdit = TimeEditState()
+    /// The Today row is showing the current track instead (while you hover the music).
+    @StateObject private var musicRow: Flag
+    @ObservedObject private var music = MusicController.shared
     @FocusState private var timeFieldFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Namespace private var glass
@@ -26,6 +29,13 @@ struct MenuContentView: View {
     private static let dialSize: CGFloat = 148
     /// Minutes around the whole dial.
     private static let dialMinutes = Double(Prefs.maxWorkMinutes)
+
+    /// `musicExpanded` opens with the track row showing (for design previews).
+    init(musicExpanded: Bool = false) {
+        let row = Flag()
+        row.value = musicExpanded
+        _musicRow = StateObject(wrappedValue: row)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,12 +52,8 @@ struct MenuContentView: View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
             .padding(.bottom, 16)
-            if musicEnabled {
-                Divider().opacity(0.6)
-                NowPlayingStrip()
-            }
             Divider().opacity(0.6)
-            todayFooter
+            footer
         }
         .frame(width: 400)
         // The menu bar window is translucent; in light mode a dark wallpaper (like
@@ -328,6 +334,40 @@ struct MenuContentView: View {
 
     private static let goalOptions = [60, 120, 180, 240, 300, 360, 480]
 
+    /// The Today row, or the current track while you hover the music at its end.
+    private var footer: some View {
+        ZStack {
+            if musicEnabled && musicRow.value {
+                NowPlayingRow()
+                    .padding(.horizontal, 20)
+                    .transition(.opacity)
+            } else {
+                todayFooter
+                    .transition(.opacity)
+            }
+        }
+        .frame(height: 38)
+        // Leaving the footer brings the Today row back.
+        .onHover { inside in
+            if !inside && musicRow.value { withAnimation(Theme.spring) { musicRow.value = false } }
+        }
+        .onChange(of: music.isVisible) { _, visible in
+            if !visible { musicRow.value = false }
+        }
+    }
+
+    private var musicTail: some View {
+        HStack(spacing: 8) {
+            Rectangle()
+                .fill(Color.primary.opacity(0.1))
+                .frame(width: 1, height: 14)
+            MusicTail()
+                .onHover { inside in
+                    if inside { withAnimation(Theme.spring) { musicRow.value = true } }
+                }
+        }
+    }
+
     /// Today's focus time against your goal. Click the goal to change it.
     private var todayFooter: some View {
         let goal = Double(goalMinutes * 60)
@@ -376,6 +416,7 @@ struct MenuContentView: View {
                     .font(.system(size: 12))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
+                if musicEnabled { musicTail }
             }
             .padding(.horizontal, 20)
             .frame(height: 38)

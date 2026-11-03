@@ -33,6 +33,8 @@ final class MusicController: ObservableObject {
     @Published private(set) var isPlaying = false
     @Published private(set) var track: Track?
     @Published private(set) var spotifyRunning = false
+    /// Whether the menu bar window is open.
+    @Published private(set) var isVisible = false
 
     static let spotifyID = "com.spotify.client"
     var spotifyInstalled: Bool { NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.spotifyID) != nil }
@@ -100,6 +102,7 @@ final class MusicController: ObservableObject {
     func setVisible(_ visible: Bool) {
         poller?.invalidate()
         poller = nil
+        isVisible = visible
         guard visible else { return }
         refresh()
         poller = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
@@ -137,6 +140,13 @@ final class MusicController: ObservableObject {
                 self.track = nil
             }
         }
+    }
+
+    /// Fakes a track for design snapshots.
+    func preview(track: Track?, playing: Bool) {
+        spotifyRunning = true
+        self.track = track
+        isPlaying = playing
     }
 
     private func refreshSoon() {

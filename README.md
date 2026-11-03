@@ -87,7 +87,8 @@ Already-open tabs may keep working until reloaded, since browsers cache DNS brie
 
 ## Music
 
-A now-playing strip in the menu bar window shows the current Spotify track with ⏮ ⏯ ⏭. In
+⏯ and a now-playing glyph sit at the end of the Today row; hover them and the row turns into the
+current Spotify track with ⏮ ⏯ ⏭. In
 Settings › Music you can have a session **resume music** or **play your focus playlist** (paste a
 Spotify playlist or album link), and pause it when the session ends. Spotify is controlled with
 AppleScript, so macOS asks once to let Deep Work Timer control Spotify. Choose **Any app** (or

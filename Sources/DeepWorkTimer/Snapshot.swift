@@ -134,7 +134,14 @@ enum DesignPreview {
         views.append(("history-dark", AnyView(HistoryView(days: sample).background(Color(white: 0.12)).environment(\.colorScheme, .dark))))
         views.append(("history-empty", AnyView(HistoryView(days: [:]))))
 
+        // Last, since they change the shared music state.
+        let focusing = scenarios().first { $0.0 == "work" }!.1
+        let track = MusicController.Track(title: "Weightless", artist: "Marconi Union", artworkURL: nil)
+        views.append(("music-playing", AnyView(MenuContentView().environmentObject(focusing))))
+        views.append(("music-hover", AnyView(MenuContentView(musicExpanded: true).environmentObject(focusing))))
+
         for (name, view) in views {
+            if name == "music-playing" { MusicController.shared.preview(track: track, playing: true) }
             let renderer = ImageRenderer(content: view.background(Color.white).environment(\.colorScheme, .light))
             renderer.scale = 2
             guard let cg = renderer.cgImage else { continue }
