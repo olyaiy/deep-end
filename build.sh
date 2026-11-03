@@ -1,11 +1,11 @@
 #!/bin/bash
-# Build Deep Work Timer.app, install it to ~/Applications, and relaunch it.
+# Build Deep End.app, install it to ~/Applications, and relaunch it.
 #   ./build.sh            build + install + launch
 #   ./build.sh --no-install   just build into ./build
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP="Deep Work Timer.app"
+APP="Deep End.app"
 OUT="build/$APP"
 
 swift build -c release
@@ -37,6 +37,8 @@ if [[ "${1:-}" == "--no-install" ]]; then exit 0; fi
 pkill -x DeepWorkTimer 2>/dev/null && sleep 1 || true
 mkdir -p "$HOME/Applications"
 rm -rf "$HOME/Applications/$APP"
+# The app was called Deep Work Timer before; remove that copy so only one runs.
+rm -rf "$HOME/Applications/Deep Work Timer.app"
 ditto "$OUT" "$HOME/Applications/$APP"
 if ! cmp -s "$HELPER_OUT/Contents/Resources/build-id" "$HOME/Applications/$HELPER/Contents/Resources/build-id"; then
   rm -rf "$HOME/Applications/$HELPER"

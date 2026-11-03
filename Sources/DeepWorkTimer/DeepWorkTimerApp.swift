@@ -9,6 +9,7 @@ enum Main {
         MainActor.assumeIsolated {
             Prefs.registerDefaults()
             DesignPreview.snapshotIfRequested()
+            Showcase.runIfRequested()
             let app = NSApplication.shared
             let delegate = AppDelegate()
             app.delegate = delegate

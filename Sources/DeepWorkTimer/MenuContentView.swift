@@ -68,7 +68,7 @@ struct MenuContentView: View {
         .contextMenu {
             Button("Settings…") { SettingsWindow.show() }
             Divider()
-            Button("Quit Deep Work Timer") { NSApp.terminate(nil) }
+            Button("Quit Deep End") { NSApp.terminate(nil) }
         }
     }
 
@@ -391,6 +391,8 @@ struct MenuContentView: View {
                     } label: {
                         Text("of \(DailyStats.durationText(goal))")
                             .underline(hovered, color: .secondary.opacity(0.5))
+                            // A menu's label otherwise draws in the primary colour.
+                            .foregroundStyle(.secondary)
                     }
                     .menuStyle(.button)
                     .buttonStyle(.plain)

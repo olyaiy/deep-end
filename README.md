@@ -1,110 +1,251 @@
-# Deep Work Timer
+<h1 align="center">Deep End</h1>
 
-A tiny macOS menu bar timer for deep work sessions. When a work session starts it
-turns on a Focus mode and swaps your wallpaper; when the session ends (or you
-stop, or the app quits) everything goes back.
+<p align="center"><b>A deep work timer for your Mac's menu bar.</b><br>
+Start a session and your Mac goes quiet: distracting sites are blocked, a Focus mode turns on,<br>
+your music starts, and the timer counts down where you can see it. When it ends, everything goes back.</p>
 
-- Apple Clock–style design in white and red: a compact, horizontal popover
-- A ring you drag to set session length; it drains as the session runs
-- "What are you working on?" intention, logged with each session
-- Work → break cycle with a long break every N sessions (default 50 / 10 / 20, long break every 3)
-- ±5 min mid-session, pause, skip, stop
-- When a session ends, the menu bar window opens on its own (with a sound) and your break waits for you to start it
-- Today's focus time vs. a daily goal
-- A standard macOS Settings window
-- Focus mode on/off via Shortcuts, custom or generated wallpaper
-- Launch at login
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero-dark.jpg">
+    <img src="docs/screenshots/hero-light.jpg" alt="Deep End open from the menu bar during a focus session: a watch-face dial showing 31:24 remaining, the task name, 17 sites blocked, Pause and stop buttons, and today's progress" width="900">
+  </picture>
+</p>
 
-## Controls
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#control-it-from-anywhere">URL commands</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#development">Development</a>
+</p>
 
-In the popover: **Return** start · **Space** pause/resume · **+ / −** adjust 5 min ·
-**⌘→** skip · **⌘.** cancel · **⌘,** settings.
+---
 
-From anywhere (Shortcuts, Raycast, Alfred, Terminal) via URL:
+## Why
+
+Most focus timers are a countdown and nothing else. Deep End handles the setup around the timer
+so you don't have to: the sites you'd drift to, notifications, music, and remembering how much you
+actually got done. It lives in the menu bar, takes one click to start, and stays out of the way.
+
+## Features
+
+### A timer that looks like a watch face
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/states-dark.jpg">
+    <img src="docs/screenshots/states-light.jpg" alt="Three states of the popover: ready to start at 50:00, focusing with 31:24 remaining, and break time in green" width="100%">
+  </picture>
+</p>
+
+- **Drag the dial** to set the length, or hover the time and **type your own** (`45`, `1:30`, `1h30`, `1.5h`).
+- Say **what you're working on**. It's saved with the session and shows up in your history.
+- The **menu bar shows a ring and the time left**, so you can glance at it without opening anything.
+- **Work, then break**: 50 / 10 by default, with a 20-minute long break every few sessions.
+  Breaks wait for you to start them instead of starting on their own.
+- When a session ends, **the window opens by itself** with a sound, without taking your keyboard.
+- **Light, dark or auto** appearance, with a light default that stays crisp over any wallpaper.
+
+### Today, at a glance
+
+The bar along the bottom is your day measured against your goal. Each segment is one session,
+sized by how long it was or will be. Hover a segment to see its name and length; click the goal
+("of 4h") to change it.
+
+### Block distractions
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/blocking-dark.jpg">
+    <img src="docs/screenshots/blocking-light.jpg" alt="The site blocker: categories like Social, Video, News, Shopping, Games, Sports and Chat, each with a checkbox" width="820">
+  </picture>
+</p>
+
+- Built-in categories (Social, Video, News, Shopping, Games, Sports, Chat). Open one to switch
+  off individual sites.
+- Make your own categories, or add one-off sites.
+- Blocking is on only during focus sessions, never during breaks, and works in every browser.
+
+### Focus mode, automatically
+
+When a session starts, the Mac switches to the Focus mode you pick (Do Not Disturb by default), and
+switches back when it ends. Deep End only turns off a Focus it turned on, never one you set
+yourself. Optionally your wallpaper changes for the session too, and is always put back, even
+after a crash.
+
+### History that tells you something
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/history-dark.jpg">
+    <img src="docs/screenshots/history-light.jpg" alt="History: a 26-week grid shaded by focus time, a one-line summary of the week, and time per task, beside the quick settings menu" width="820">
+  </picture>
+</p>
+
+- A **26-week grid**, each day shaded by how close you got to your goal.
+- A **one-line summary** instead of a wall of numbers: your best week in a while, a streak worth
+  keeping, or how this week compares to the last.
+- **What you worked on** this week, by task. Hover any day to see its sessions.
+- Click **Today** in the popover, or open it from the gear menu.
+
+### Music, without leaving the timer
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/music-dark.jpg">
+    <img src="docs/screenshots/music-light.jpg" alt="Music controls: a play button at the end of the Today row, which turns into the current track with previous, pause and next when hovered" width="820">
+  </picture>
+</p>
+
+- ⏯ sits at the end of the Today row. **Hover it** and the row turns into the current Spotify
+  track with ⏮ ⏯ ⏭.
+- Have a session **resume your music** or **start your focus playlist** (paste any Spotify
+  playlist, album or song link), and pause it when the session ends.
+- Not on Spotify? Choose **Any app** and the buttons control whatever's playing (Apple Music,
+  a browser, podcasts) through macOS's media controls.
+
+### Keyboard shortcuts
+
+In the popover: <kbd>Return</kbd> start · <kbd>Space</kbd> pause or resume · <kbd>+</kbd> / <kbd>−</kbd> add or take off
+5 minutes · <kbd>⌘</kbd><kbd>→</kbd> skip · <kbd>⌘</kbd><kbd>.</kbd> stop · <kbd>⌘</kbd><kbd>,</kbd> settings · <kbd>Esc</kbd> close.
+
+## Install
+
+Deep End is built from source. You need **macOS 26 (Tahoe) or later** and the **Xcode Command Line
+Tools**; full Xcode isn't required.
 
 ```bash
-open "deepwork://start?minutes=50&intent=Write%20the%20doc"
-open "deepwork://toggle"        # start, or pause/resume
-open "deepwork://pause"         # also: resume, stop, skip
-open "deepwork://add?minutes=10"   # also: subtract
-open "deepwork://open"          # show the menu bar window
-```
-
-## Previewing the UI
-
-`.build/release/DeepWorkTimer --preview` opens a window showing every state with real
-Liquid Glass. `--snapshot ./snaps` renders every screen
-to PNGs with sample data, then exits. Native text fields and menus show as placeholders.
-
-## Build & run
-
-Needs macOS 26+ (Liquid Glass) and the Xcode Command Line Tools (full Xcode not required).
-
-```bash
+xcode-select --install          # if you don't have the command line tools yet
+git clone https://github.com/olyaiy/deep-end.git
+cd deep-end
 ./build.sh
 ```
 
-That builds `Deep Work Timer.app`, installs it to `~/Applications`, and launches
-it. Re-run after any change. `./build.sh --no-install` only builds into `./build`.
+That builds **Deep End.app**, installs it to `~/Applications` and launches it. A timer icon appears
+in the menu bar. Run `./build.sh` again after pulling changes; `./build.sh --no-install` only builds
+into `./build`.
 
-## Setting up the Focus mode
+### One-time setup
 
-macOS has no public API for Focus, so the app runs two Shortcuts by name. Create
-them once in the Shortcuts app:
+Each of these is optional. Deep End works without them and tells you in Settings what's missing.
 
-1. **Deep Work On**: add a **Set Focus** action → *Turn* your Focus (e.g. "Deep Work" or "Do Not Disturb") *On* → *Until Turned Off*.
-2. **Deep Work Off**: add a **Set Focus** action → *Turn* the same Focus *Off*.
+| Feature | What to do |
+|---|---|
+| **Site blocking** | Click the shield next to Start, then **Set Up…**. macOS asks for your password once. |
+| **Focus mode** | Settings › During Focus › **Open Settings**, then add **Deep Work Focus** to Full Disk Access and click **Check Again**. |
+| **Spotify** | The first time, macOS asks to let Deep End control Spotify. Click **Allow**. |
+| **Open at login** | Settings › General › **Open at login**. |
 
-You can pick different shortcuts (or None) in the app's settings. Settings shows a
-warning if a selected shortcut doesn't exist.
+## Control it from anywhere
 
-## Wallpaper
+Every action has a URL, so Shortcuts, Raycast, Alfred, a hotkey app or Terminal can drive it:
 
-During work sessions the wallpaper switches to the image you choose in settings,
-or a generated dark one (stored in `~/Library/Application Support/DeepWorkTimer`).
-The original wallpaper for each display is saved before anything changes and
-restored afterwards: on stop, on quit, on `kill`, after a crash (on next launch), and
-for a display unplugged mid-session (when it reconnects). A display whose current
-wallpaper isn't a plain image file (e.g. a dynamic or aerial one) is left alone,
-since it couldn't be put back exactly.
+```bash
+open "deepwork://start?minutes=50&intent=Write%20the%20doc"
+open "deepwork://toggle"           # start, or pause/resume
+open "deepwork://pause"            # also: resume, stop, skip
+open "deepwork://add?minutes=10"   # also: subtract
+open "deepwork://open"             # show the window
+```
 
-## Site blocking
+## How it works
 
-Click the shield next to **Start**, or the "sites blocked" pill during a session, to pick what's blocked:
-built-in categories (Social, Video, News, Shopping, Games, Sports, Chat), with any single site switched
-off, plus your own categories and sites. Blocking runs only during focus sessions, not breaks.
+<details>
+<summary><b>Site blocking</b>: a marked section of <code>/etc/hosts</code></summary>
 
-How it works: blocked domains (plus their `www.`, `m.` and `mobile.` variants) go into a marked section
-of `/etc/hosts` and come out when the session ends, or the next time the app launches if it was killed.
-Editing `/etc/hosts` needs root, so **Set Up…** in the picker asks for your password once to install:
+<br>
 
-- `/usr/local/libexec/deepwork-block`, a root-owned script that only writes `0.0.0.0 <domain>` lines
-  between its own markers (input is validated as domain names)
-- `/etc/sudoers.d/deepworktimer`, letting your user run only that script without a password
+Blocked domains, plus their `www.`, `m.` and `mobile.` variants, are written into a marked section
+of `/etc/hosts` when a session starts and removed when it ends, or the next time the app launches if
+it was killed. Editing `/etc/hosts` needs root, so **Set Up…** installs two small files:
 
-To uninstall: `sudo rm /usr/local/libexec/deepwork-block /etc/sudoers.d/deepworktimer`.
-Already-open tabs may keep working until reloaded, since browsers cache DNS briefly.
+- `/usr/local/libexec/deepwork-block`: a root-owned script that only writes `0.0.0.0 <domain>`
+  lines between its own markers. Input is checked to be domain names.
+- `/etc/sudoers.d/deepworktimer`: lets your user run only that script without a password.
 
-## Music
+Tabs that are already open may keep working until reloaded, because browsers cache DNS for a
+moment. To uninstall: `sudo rm /usr/local/libexec/deepwork-block /etc/sudoers.d/deepworktimer`.
+</details>
 
-⏯ and a now-playing glyph sit at the end of the Today row; hover them and the row turns into the
-current Spotify track with ⏮ ⏯ ⏭. In
-Settings › Music you can have a session **resume music** or **play your focus playlist** (paste a
-Spotify playlist or album link), and pause it when the session ends. Spotify is controlled with
-AppleScript, so macOS asks once to let Deep Work Timer control Spotify. Choose **Any app** (or
-without Spotify installed) and the buttons drive whatever is playing through macOS's media
-controls instead, without track info.
+<details>
+<summary><b>Focus mode</b>: a small helper with Full Disk Access</summary>
 
-## Layout
+<br>
+
+macOS has no public API for turning a Focus on. Deep End ships a tiny helper app,
+**Deep Work Focus.app**, that edits the Focus database (`~/Library/DoNotDisturb/DB/Assertions.json`)
+and restarts the Focus service so the change takes effect. That folder is privacy-protected,
+which is why the helper needs Full Disk Access. It's a separate app so the permission survives
+rebuilds of the main app.
+
+- The timer asks the helper for things through a request file, which a LaunchAgent watches.
+- The helper keeps a backup of the original database in `~/Library/Application Support/DeepWorkTimer`.
+- It remembers which Focus it created, so it never ends one you turned on yourself.
+
+This uses macOS internals, so a future macOS update could break it. If that happens, blocking,
+the timer and everything else keep working.
+</details>
+
+<details>
+<summary><b>Wallpaper</b>: saved before, restored after</summary>
+
+<br>
+
+Each display's wallpaper is saved before it changes and restored afterwards: when you stop, quit,
+`kill` the app, after a crash (on next launch), and for a display unplugged mid-session (when it
+reconnects). Displays with a dynamic or aerial wallpaper are left alone, since those can't be put
+back exactly.
+</details>
+
+<details>
+<summary><b>Music</b>: AppleScript for Spotify, media keys for everything else</summary>
+
+<br>
+
+Spotify is controlled with AppleScript, which also gives the current track and artwork and can play
+a link directly. With **Any app** chosen, or without Spotify installed, the buttons send the same
+commands as your keyboard's media keys, through macOS's media controls. Those can't report what's
+playing.
+</details>
+
+<details>
+<summary><b>Privacy</b></summary>
+
+<br>
+
+Everything stays on your Mac: sessions, history and settings are stored in the app's preferences.
+Nothing is sent anywhere. The app only talks to Spotify, and only on your Mac.
+</details>
+
+## Development
+
+Swift and SwiftUI, built with Swift Package Manager. No Xcode project.
+
+```bash
+swift build -c release
+.build/release/DeepWorkTimer --preview            # every state in one window, light and dark
+.build/release/DeepWorkTimer --snapshot ./snaps   # render the screens to PNGs and exit
+.build/release/DeepWorkTimer --showcase docs/screenshots   # retake the README screenshots
+```
+
+`--showcase` briefly opens each scene in a real window so it can capture glass and native
+controls exactly. Expect windows to flash on screen for about 20 seconds. All three modes use
+sample data and never touch your settings, Focus or wallpaper.
 
 | File | What it does |
 |---|---|
-| `DeepWorkTimerApp.swift` | App entry, `deepwork://` commands |
-| `TimerModel.swift` | Phases, countdown (end-date based, survives sleep), stats, alerts |
-| `SessionEffects.swift` | Focus via Shortcuts, wallpaper swap/restore, default wallpaper |
-| `MenuContentView.swift` | The popover |
-| `SettingsView.swift` | Settings window |
-| `Theme.swift`, `TimerRing.swift` | Colors, buttons, segmented control, the ring, menu bar icon |
-| `MenuBarController.swift` | Menu bar item and its window (opens itself when a phase ends) |
-| `Snapshot.swift` | `--snapshot` UI renderer |
-| `Prefs.swift` | UserDefaults keys and defaults |
+| `DeepWorkTimerApp.swift` | App entry point and `deepwork://` commands |
+| `MenuBarController.swift` | The menu bar item and its window, which opens itself when a phase ends |
+| `MenuContentView.swift` | The popover: dial, task, buttons and the Today row |
+| `TimerRing.swift` | The watch-face dial and the menu bar ring |
+| `SessionBar.swift` | Today's sessions laid out against your goal |
+| `TimerModel.swift` | Phases, the countdown (based on an end date, so it survives sleep), daily stats |
+| `SessionEffects.swift` | What happens when a session starts and ends: blocking, Focus, music, wallpaper |
+| `SiteBlocker.swift`, `BlockPickerView.swift` | Site blocking and its picker |
+| `FocusController.swift` | Talks to the Focus helper |
+| `Sources/DeepWorkFocus/` | The Focus helper itself |
+| `MusicController.swift`, `MusicFooter.swift` | Spotify and media controls, and their place in the Today row |
+| `HistoryView.swift` | The history grid, summary line and per-task breakdown |
+| `QuickSettingsView.swift`, `SettingsView.swift` | The gear menu and the Settings window |
+| `Theme.swift`, `Prefs.swift` | Colours, buttons, settings keys and defaults |
+| `Snapshot.swift`, `Showcase.swift` | Previews, snapshots and README screenshots |

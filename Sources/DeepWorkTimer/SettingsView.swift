@@ -10,7 +10,7 @@ enum SettingsWindow {
         if window == nil {
             let controller = NSHostingController(rootView: SettingsView())
             let window = NSWindow(contentViewController: controller)
-            window.title = "Deep Work Timer"
+            window.title = "Deep End"
             window.styleMask = [.titled, .closable]
             window.isReleasedWhenClosed = false
             window.setContentSize(NSSize(width: 460, height: 600))
@@ -142,7 +142,7 @@ struct SettingsView: View {
                 }
                 HStack {
                     Spacer()
-                    Button("Quit Deep Work Timer") { NSApp.terminate(nil) }
+                    Button("Quit Deep End") { NSApp.terminate(nil) }
                 }
             }
         }

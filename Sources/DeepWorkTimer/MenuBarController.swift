@@ -99,7 +99,7 @@ final class MenuBarController: NSObject {
         let menu = NSMenu()
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Deep Work Timer", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "Quit Deep End", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil
@@ -124,7 +124,7 @@ final class MenuBarController: NSObject {
         guard let button = statusItem.button else { return }
         if timer.phase == .idle {
             let image = NSImage(systemSymbolName: timer.pendingBreak == nil ? "timer" : "cup.and.saucer",
-                                accessibilityDescription: "Deep Work Timer")
+                                accessibilityDescription: "Deep End")
             image?.isTemplate = true
             button.image = image
             button.title = ""

@@ -63,7 +63,7 @@ enum DesignPreview {
         let hosting = NSHostingView(rootView: content)
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
                               styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Deep Work Timer — Design Preview"
+        window.title = "Deep End — Design Preview"
         window.contentView = hosting
         window.center()
         window.isReleasedWhenClosed = false

@@ -5,9 +5,9 @@
     <key>CFBundleIdentifier</key>
     <string>com.olyaiy.DeepWorkTimer</string>
     <key>CFBundleName</key>
-    <string>Deep Work Timer</string>
+    <string>Deep End</string>
     <key>CFBundleDisplayName</key>
-    <string>Deep Work Timer</string>
+    <string>Deep End</string>
     <key>CFBundleExecutable</key>
     <string>DeepWorkTimer</string>
     <key>CFBundlePackageType</key>
@@ -32,7 +32,7 @@
         </dict>
     </array>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Deep Work Timer controls Spotify to play your focus music.</string>
+    <string>Deep End controls Spotify to play your focus music.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>
