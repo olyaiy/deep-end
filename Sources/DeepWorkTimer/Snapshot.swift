@@ -120,6 +120,13 @@ enum DesignPreview {
         var views: [(String, AnyView)] = scenarios().map { name, model in
             (name, AnyView(MenuContentView().environmentObject(model)))
         }
+        let plan = SessionPlan(done: [.init(seconds: 3000, completed: true, title: "Phys HW"),
+                                      .init(seconds: 900, completed: false, title: "Essay outline")],
+                               current: (length: 1500, elapsed: 600, title: "Physics HW"),
+                               sessionLength: 1500, goal: 10800)
+        for i in [0, 1, 2, 3] {
+            views.append(("bar-hover-\(i)", AnyView(SessionBar(plan: plan, hovering: i).frame(width: 260).padding(.top, 34).padding(16))))
+        }
         let sample = sampleHistory()
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
         views.append(("history", AnyView(HistoryView(days: sample))))

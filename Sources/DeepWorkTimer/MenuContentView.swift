@@ -374,7 +374,6 @@ struct MenuContentView: View {
             }
             .padding(.horizontal, 20)
             .frame(height: 38)
-            .help(planHelp(plan, fraction: fraction))
         }
     }
 
@@ -402,11 +401,11 @@ struct MenuContentView: View {
     }
 
     private var sessionPlan: SessionPlan {
-        let entries = timer.today.entries
-        var current: (TimeInterval, TimeInterval)?
-        if phase == .work { current = (timer.phaseDuration, max(0, timer.phaseDuration - timer.remaining)) }
-        return SessionPlan(done: entries.map(\.seconds), completed: entries.map(\.completed),
-                           current: current.map { (length: $0.0, elapsed: $0.1) },
+        let done = timer.today.entries.map { SessionPlan.Done(seconds: $0.seconds, completed: $0.completed, title: $0.intention) }
+        let current = phase == .work
+            ? (length: timer.phaseDuration, elapsed: max(0, timer.phaseDuration - timer.remaining), title: timer.intention)
+            : nil
+        return SessionPlan(done: done, current: current,
                            sessionLength: TimeInterval(workMinutes * 60), goal: TimeInterval(goalMinutes * 60))
     }
 
@@ -414,14 +413,6 @@ struct MenuContentView: View {
         let total = plan.segments.count
         let done = plan.doneCount
         return total == done ? (done == 1 ? "1 session" : "\(done) sessions") : "\(done) of \(total)"
-    }
-
-    private func planHelp(_ plan: SessionPlan, fraction: Double) -> String {
-        // Count at your session length, even if the bar merged segments to stay readable.
-        let plannedSeconds = plan.segments.filter { $0.kind == .next || $0.kind == .planned }.map(\.seconds).reduce(0, +)
-        let left = Int((plannedSeconds / TimeInterval(workMinutes * 60)).rounded(.up))
-        if left == 0 { return fraction >= 1 ? "Goal reached" : "This session reaches your goal" }
-        return "\(left) more \(workMinutes)-minute session\(left == 1 ? "" : "s") to reach your goal"
     }
 
     // MARK: Settings

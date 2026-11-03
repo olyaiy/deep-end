@@ -14,6 +14,8 @@ struct QuickSettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             appearancePicker
 
+            history
+
             VStack(spacing: 0) {
                 row("Focus & wallpaper", symbol: "moon.fill") { Toggle("", isOn: $effectsEnabled).labelsHidden() }
                 Divider().padding(.leading, 30)
@@ -49,6 +51,26 @@ struct QuickSettingsView: View {
         .toggleStyle(.switch)
         .controlSize(.mini)
         .tint(Theme.red)
+    }
+
+    /// The last 14 weeks at a glance; opens the full history.
+    private var history: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("History").font(.system(size: 12.5, weight: .semibold))
+                Spacer()
+                Button {
+                    HistoryWindow.show()
+                } label: {
+                    Label("Open", systemImage: "arrow.up.right").font(.system(size: 11.5))
+                }
+                .buttonStyle(.borderless)
+                .pointerStyle(.link)
+            }
+            HistoryView(compact: true, weeks: 14)
+        }
+        .padding(10)
+        .groupBox()
     }
 
     /// Three tappable tiles rather than a plain segmented control, so the choice reads at a glance.

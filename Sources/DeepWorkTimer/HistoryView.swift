@@ -8,10 +8,17 @@ struct HistoryView: View {
     var days: [String: DailyStats]
     @AppStorage(Prefs.Key.dailyGoalMinutes) private var goalMinutes = 240
     @StateObject private var hover: HoveredDay
+    /// Just the grid and a one-line caption, for small spaces like the settings menu.
+    private let compact: Bool
+    /// Weeks the grid shows.
+    private let shownWeeks: Int
 
     /// `hovering` pre-selects a day (for design previews).
-    init(days: [String: DailyStats] = DailyStats.history(days: HistoryView.weeks * 7), hovering: Date? = nil) {
+    init(days: [String: DailyStats] = DailyStats.history(days: HistoryView.weeks * 7),
+         compact: Bool = false, weeks: Int = HistoryView.weeks, hovering: Date? = nil) {
         self.days = days
+        self.compact = compact
+        self.shownWeeks = min(weeks, HistoryView.weeks)
         let state = HoveredDay()
         if let hovering { state.day = DailyStats.key(for: hovering); state.date = hovering }
         _hover = StateObject(wrappedValue: state)
@@ -23,6 +30,10 @@ struct HistoryView: View {
     private let labelWidth: CGFloat = 26
 
     var body: some View {
+        if compact { compactBody } else { fullBody }
+    }
+
+    private var fullBody: some View {
         VStack(alignment: .leading, spacing: 16) {
             insight
             VStack(alignment: .trailing, spacing: 8) {
@@ -33,8 +44,30 @@ struct HistoryView: View {
             detail
         }
         .padding(20)
-        .frame(width: labelWidth + gap + CGFloat(Self.weeks) * (cell + gap) - gap + 40)
+        .frame(width: gridWidth + 40)
         .monospacedDigit()
+    }
+
+    private var gridWidth: CGFloat { labelWidth + gap + CGFloat(shownWeeks) * (cell + gap) - gap }
+
+    /// The grid with a caption that shows the hovered day.
+    private var compactBody: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            grid
+            HStack {
+                if let key = hover.day, let date = hover.date {
+                    let seconds = days[key]?.focusSeconds ?? 0
+                    Text("\(date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())) · \(seconds >= 60 ? duration(seconds) : "no focus")")
+                } else {
+                    Text("\(duration(week(0))) in the last 7 days")
+                }
+                Spacer()
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+        }
+        .frame(width: gridWidth)
     }
 
     // MARK: Insight
@@ -108,8 +141,8 @@ struct HistoryView: View {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let weekdayIndex = (cal.component(.weekday, from: today) - cal.firstWeekday + 7) % 7
-        let start = cal.date(byAdding: .day, value: -(Self.weeks - 1) * 7 - weekdayIndex, to: today)!
-        return (0..<Self.weeks).map { w in
+        let start = cal.date(byAdding: .day, value: -(shownWeeks - 1) * 7 - weekdayIndex, to: today)!
+        return (0..<shownWeeks).map { w in
             (0..<7).map { d in
                 let date = cal.date(byAdding: .day, value: w * 7 + d, to: start)!
                 return date <= today ? date : nil
@@ -386,5 +419,28 @@ extension DailyStats {
             if stats.focusSeconds > 0 || !stats.entries.isEmpty { out[stats.day] = stats }
         }
         return out
+    }
+}
+
+/// The full history in its own window, opened from the settings menu.
+@MainActor
+enum HistoryWindow {
+    private static var window: NSWindow?
+
+    static func show() {
+        if window == nil {
+            let window = NSWindow(contentViewController: NSHostingController(rootView: HistoryView()))
+            window.title = "Focus History"
+            window.styleMask = [.titled, .closable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            self.window = window
+        } else {
+            // Fresh data each time it's opened.
+            window?.contentViewController = NSHostingController(rootView: HistoryView())
+        }
+        MenuBarController.shared?.close()
+        NSApp.activate()
+        window?.makeKeyAndOrderFront(nil)
     }
 }
