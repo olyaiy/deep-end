@@ -8,6 +8,7 @@ struct MenuContentView: View {
     @AppStorage(Prefs.Key.workMinutes) private var workMinutes = 50
     @AppStorage(Prefs.Key.dailyGoalMinutes) private var goalMinutes = 240
     @AppStorage(Prefs.Key.effectsEnabled) private var effectsEnabled = true
+    @AppStorage(Prefs.Key.musicEnabled) private var musicEnabled = true
     @ObservedObject private var blocker = SiteBlocker.shared
     @StateObject private var blocklist = Flag()
     @StateObject private var quickSettings = Flag()
@@ -41,6 +42,10 @@ struct MenuContentView: View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
             .padding(.bottom, 16)
+            if musicEnabled {
+                Divider().opacity(0.6)
+                NowPlayingStrip()
+            }
             Divider().opacity(0.6)
             todayFooter
         }

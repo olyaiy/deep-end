@@ -85,6 +85,15 @@ Editing `/etc/hosts` needs root, so **Set Up…** in the picker asks for your pa
 To uninstall: `sudo rm /usr/local/libexec/deepwork-block /etc/sudoers.d/deepworktimer`.
 Already-open tabs may keep working until reloaded, since browsers cache DNS briefly.
 
+## Music
+
+A now-playing strip in the menu bar window shows the current Spotify track with ⏮ ⏯ ⏭. In
+Settings › Music you can have a session **resume music** or **play your focus playlist** (paste a
+Spotify playlist or album link), and pause it when the session ends. Spotify is controlled with
+AppleScript, so macOS asks once to let Deep Work Timer control Spotify. Choose **Any app** (or
+without Spotify installed) and the buttons drive whatever is playing through macOS's media
+controls instead, without track info.
+
 ## Layout
 
 | File | What it does |

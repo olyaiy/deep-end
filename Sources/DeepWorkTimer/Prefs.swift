@@ -10,6 +10,11 @@ enum Prefs {
         static let dailyGoalMinutes = "dailyGoalMinutes"
         static let effectsEnabled = "effectsEnabled"
         static let focusMode = "focusMode"
+        static let musicEnabled = "musicEnabled"
+        static let musicSource = "musicSource"
+        static let musicOnStart = "musicOnStart"
+        static let focusPlaylist = "focusPlaylist"
+        static let pauseMusicOnBreak = "pauseMusicOnBreak"
         static let wallpaperPath = "wallpaperPath"
         static let playSound = "playSound"
         static let showTimeInMenuBar = "showTimeInMenuBar"
@@ -28,6 +33,11 @@ enum Prefs {
             Key.dailyGoalMinutes: 240,
             Key.effectsEnabled: true,
             Key.focusMode: "com.apple.donotdisturb.mode.default",
+            Key.musicEnabled: true,
+            Key.musicSource: "spotify",
+            Key.musicOnStart: "nothing",
+            Key.focusPlaylist: "",
+            Key.pauseMusicOnBreak: true,
             Key.wallpaperPath: "",
             Key.playSound: true,
             Key.showTimeInMenuBar: true,
@@ -43,6 +53,12 @@ enum Prefs {
     static var sessionsPerLongBreak: Int { max(1, d.integer(forKey: Key.sessionsPerLongBreak)) }
     static var dailyGoalMinutes: Int { max(15, d.integer(forKey: Key.dailyGoalMinutes)) }
     static var effectsEnabled: Bool { d.bool(forKey: Key.effectsEnabled) }
+    static var musicEnabled: Bool { d.bool(forKey: Key.musicEnabled) }
+    @MainActor static var musicSource: MusicController.Source { .init(rawValue: d.string(forKey: Key.musicSource) ?? "") ?? .spotify }
+    @MainActor static var musicOnStart: MusicController.OnStart { .init(rawValue: d.string(forKey: Key.musicOnStart) ?? "") ?? .nothing }
+    @MainActor static var focusPlaylistURI: String? { MusicController.spotifyURI(from: d.string(forKey: Key.focusPlaylist) ?? "") }
+    static var pauseMusicOnBreak: Bool { d.bool(forKey: Key.pauseMusicOnBreak) }
+
     /// Identifier of the Focus mode to turn on, e.g. com.apple.focus.work.
     static var focusMode: String { d.string(forKey: Key.focusMode) ?? "com.apple.donotdisturb.mode.default" }
     static var playSound: Bool { d.bool(forKey: Key.playSound) }

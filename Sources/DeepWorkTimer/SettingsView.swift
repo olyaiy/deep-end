@@ -30,6 +30,11 @@ struct SettingsView: View {
     @AppStorage(Prefs.Key.dailyGoalMinutes) private var dailyGoalMinutes = 240
     @AppStorage(Prefs.Key.effectsEnabled) private var effectsEnabled = true
     @AppStorage(Prefs.Key.focusMode) private var focusMode = FocusController.doNotDisturb
+    @AppStorage(Prefs.Key.musicEnabled) private var musicEnabled = true
+    @AppStorage(Prefs.Key.musicSource) private var musicSource = MusicController.Source.spotify.rawValue
+    @AppStorage(Prefs.Key.musicOnStart) private var musicOnStart = MusicController.OnStart.nothing.rawValue
+    @AppStorage(Prefs.Key.focusPlaylist) private var focusPlaylist = ""
+    @AppStorage(Prefs.Key.pauseMusicOnBreak) private var pauseMusicOnBreak = true
     @AppStorage(Prefs.Key.wallpaperPath) private var wallpaperPath = ""
     @AppStorage(Prefs.Key.playSound) private var playSound = true
     @AppStorage(Prefs.Key.showTimeInMenuBar) private var showTimeInMenuBar = true
@@ -90,6 +95,39 @@ struct SettingsView: View {
                 }
             }
 
+            Section {
+                Toggle("Show music controls", isOn: $musicEnabled)
+                Picker("Control", selection: $musicSource) {
+                    ForEach(MusicController.Source.allCases, id: \.rawValue) { Text($0.title).tag($0.rawValue) }
+                }
+                Picker("When a session starts", selection: $musicOnStart) {
+                    ForEach(MusicController.OnStart.allCases, id: \.rawValue) { option in
+                        if option != .playlist || musicSource == MusicController.Source.spotify.rawValue {
+                            Text(option.title).tag(option.rawValue)
+                        }
+                    }
+                }
+                if musicSource == MusicController.Source.spotify.rawValue {
+                    LabeledContent("Focus playlist") {
+                        HStack(spacing: 6) {
+                            TextField("Paste a Spotify link", text: $focusPlaylist)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 220)
+                            if !focusPlaylist.isEmpty {
+                                Image(systemName: MusicController.spotifyURI(from: focusPlaylist) != nil ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .foregroundStyle(MusicController.spotifyURI(from: focusPlaylist) != nil ? .green : .orange)
+                                    .help(MusicController.spotifyURI(from: focusPlaylist) != nil ? "Looks good" : "That isn't a Spotify link")
+                            }
+                        }
+                    }
+                }
+                Toggle("Pause music when a session ends", isOn: $pauseMusicOnBreak)
+            } header: {
+                Text("Music")
+            } footer: {
+                Text(musicFooter).foregroundStyle(.secondary)
+            }
+
             Section("General") {
                 Toggle("Play a sound when a session or break ends", isOn: $playSound)
                 Toggle("Show time in menu bar", isOn: $showTimeInMenuBar)
@@ -123,6 +161,15 @@ struct SettingsView: View {
                 Text(format(value.wrappedValue)).monospacedDigit()
             }
         }
+    }
+
+    private var musicFooter: String {
+        if musicSource == MusicController.Source.spotify.rawValue {
+            return MusicController.shared.spotifyInstalled
+                ? "In Spotify, use Share › Copy link to playlist (or album), then paste it here."
+                : "Spotify isn't installed, so the controls work whatever app is playing."
+        }
+        return "Play, pause and skip whatever is playing: Music, a browser, podcasts…"
     }
 
     /// Whether the Focus helper can do its job, and how to fix it if not.

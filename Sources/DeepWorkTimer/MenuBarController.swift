@@ -66,6 +66,7 @@ final class MenuBarController: NSObject {
             panel.orderFrontRegardless()
         }
         statusItem.button?.highlight(true)
+        MusicController.shared.setVisible(true)
         guard clickMonitor == nil else { return }
         // Close on a click anywhere else, like a menu.
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
@@ -76,6 +77,7 @@ final class MenuBarController: NSObject {
     func close() {
         panel.orderOut(nil)
         statusItem.button?.highlight(false)
+        MusicController.shared.setVisible(false)
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
         clickMonitor = nil
     }

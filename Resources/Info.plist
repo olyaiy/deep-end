@@ -31,6 +31,8 @@
             </array>
         </dict>
     </array>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Deep Work Timer controls Spotify to play your focus music.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>

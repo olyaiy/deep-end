@@ -32,6 +32,7 @@ final class SessionEffects {
 
     func apply() {
         SiteBlocker.shared.apply()
+        MusicController.shared.sessionStarted()
         guard Prefs.effectsEnabled, !defaults.bool(forKey: activeKey) else { return }
         defaults.set(true, forKey: activeKey)
 
@@ -55,6 +56,7 @@ final class SessionEffects {
 
     func revert() {
         SiteBlocker.shared.clear()
+        MusicController.shared.sessionEnded()
         let wasActive = defaults.bool(forKey: activeKey)
         restoreWallpapers()
         defaults.set(false, forKey: activeKey)
