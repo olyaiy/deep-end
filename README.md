@@ -249,3 +249,7 @@ sample data and never touch your settings, Focus or wallpaper.
 | `QuickSettingsView.swift`, `SettingsView.swift` | The gear menu and the Settings window |
 | `Theme.swift`, `Prefs.swift` | Colours, buttons, settings keys and defaults |
 | `Snapshot.swift`, `Showcase.swift` | Previews, snapshots and README screenshots |
+
+## License
+
+[MIT](LICENSE)
