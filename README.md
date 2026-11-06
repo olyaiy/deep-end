@@ -71,7 +71,8 @@ sized by how long it was or will be. Hover a segment to see its name and length;
 When a session starts, the Mac switches to the Focus mode you pick (Do Not Disturb by default), and
 switches back when it ends. Deep End only turns off a Focus it turned on, never one you set
 yourself. Optionally your wallpaper changes for the session too, and is always put back, even
-after a crash.
+after a crash. You can also have the **desktop icons hidden** for the session (Finder restarts
+to hide and show them; its windows come back).
 
 ### History that tells you something
 

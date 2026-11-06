@@ -33,6 +33,7 @@ final class SessionEffects {
     func apply() {
         SiteBlocker.shared.apply()
         MusicController.shared.sessionStarted()
+        if Prefs.hideDesktopIcons { DesktopIcons.hide() }
         guard Prefs.effectsEnabled, !defaults.bool(forKey: activeKey) else { return }
         defaults.set(true, forKey: activeKey)
 
@@ -57,6 +58,7 @@ final class SessionEffects {
     func revert() {
         SiteBlocker.shared.clear()
         MusicController.shared.sessionEnded()
+        DesktopIcons.restore()
         let wasActive = defaults.bool(forKey: activeKey)
         restoreWallpapers()
         defaults.set(false, forKey: activeKey)
@@ -148,5 +150,50 @@ enum DefaultWallpaper {
         guard let data = rep.representation(using: .png, properties: [:]),
               (try? data.write(to: url)) != nil else { return nil }
         return url
+    }
+}
+
+/// Hides the icons on the desktop for a session, the same way as
+/// `defaults write com.apple.finder CreateDesktop false`: Finder reads that
+/// setting when it starts, so it's restarted (its open windows come back).
+///
+/// Icons you'd already hidden yourself are left that way; they're only shown
+/// again afterwards if a session hid them. That's remembered across launches,
+/// so a crash mid-session gets them back next time the app opens.
+enum DesktopIcons {
+    private static let hidKey = "effects.hidDesktopIcons"
+
+    static func hide() {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: hidKey) else { return }
+        let finder = UserDefaults(suiteName: "com.apple.finder")
+        if finder?.object(forKey: "CreateDesktop") != nil, finder?.bool(forKey: "CreateDesktop") == false { return }
+        // Remembered first, so a crash right after still gets them shown again.
+        defaults.set(true, forKey: hidKey)
+        setShown(false)
+    }
+
+    static func restore() {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: hidKey) else { return }
+        defaults.removeObject(forKey: hidKey)
+        setShown(true)
+    }
+
+    private static func setShown(_ shown: Bool) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            run("/usr/bin/defaults", ["write", "com.apple.finder", "CreateDesktop", "-bool", shown ? "true" : "false"])
+            run("/usr/bin/killall", ["Finder"])
+        }
+    }
+
+    private static func run(_ path: String, _ arguments: [String]) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
     }
 }

@@ -9,6 +9,7 @@ enum Prefs {
         static let sessionsPerLongBreak = "sessionsPerLongBreak"
         static let dailyGoalMinutes = "dailyGoalMinutes"
         static let effectsEnabled = "effectsEnabled"
+        static let hideDesktopIcons = "hideDesktopIcons"
         static let focusMode = "focusMode"
         static let musicEnabled = "musicEnabled"
         static let musicSource = "musicSource"
@@ -32,6 +33,7 @@ enum Prefs {
             Key.sessionsPerLongBreak: 3,
             Key.dailyGoalMinutes: 240,
             Key.effectsEnabled: true,
+            Key.hideDesktopIcons: false,
             Key.focusMode: "com.apple.donotdisturb.mode.default",
             Key.musicEnabled: true,
             Key.musicSource: "spotify",
@@ -53,6 +55,7 @@ enum Prefs {
     static var sessionsPerLongBreak: Int { max(1, d.integer(forKey: Key.sessionsPerLongBreak)) }
     static var dailyGoalMinutes: Int { max(15, d.integer(forKey: Key.dailyGoalMinutes)) }
     static var effectsEnabled: Bool { d.bool(forKey: Key.effectsEnabled) }
+    static var hideDesktopIcons: Bool { d.bool(forKey: Key.hideDesktopIcons) }
     static var musicEnabled: Bool { d.bool(forKey: Key.musicEnabled) }
     @MainActor static var musicSource: MusicController.Source { .init(rawValue: d.string(forKey: Key.musicSource) ?? "") ?? .spotify }
     @MainActor static var musicOnStart: MusicController.OnStart { .init(rawValue: d.string(forKey: Key.musicOnStart) ?? "") ?? .nothing }

@@ -5,6 +5,7 @@ import SwiftUI
 struct QuickSettingsView: View {
     @AppStorage(Prefs.Key.appearance) private var appearance = Appearance.light.rawValue
     @AppStorage(Prefs.Key.effectsEnabled) private var effectsEnabled = true
+    @AppStorage(Prefs.Key.hideDesktopIcons) private var hideDesktopIcons = false
     @AppStorage(Prefs.Key.playSound) private var playSound = true
     @AppStorage(Prefs.Key.showTimeInMenuBar) private var showTimeInMenuBar = true
     @AppStorage(Prefs.Key.shortBreakMinutes) private var shortBreakMinutes = 10
@@ -18,6 +19,8 @@ struct QuickSettingsView: View {
 
             VStack(spacing: 0) {
                 row("Focus & wallpaper", symbol: "moon.fill") { Toggle("", isOn: $effectsEnabled).labelsHidden() }
+                Divider().padding(.leading, 30)
+                row("Hide desktop icons", symbol: "eye.slash.fill") { Toggle("", isOn: $hideDesktopIcons).labelsHidden() }
                 Divider().padding(.leading, 30)
                 row("Sound when done", symbol: "speaker.wave.2.fill") { Toggle("", isOn: $playSound).labelsHidden() }
                 Divider().padding(.leading, 30)

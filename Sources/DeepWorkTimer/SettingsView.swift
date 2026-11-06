@@ -29,6 +29,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.Key.sessionsPerLongBreak) private var sessionsPerLongBreak = 3
     @AppStorage(Prefs.Key.dailyGoalMinutes) private var dailyGoalMinutes = 240
     @AppStorage(Prefs.Key.effectsEnabled) private var effectsEnabled = true
+    @AppStorage(Prefs.Key.hideDesktopIcons) private var hideDesktopIcons = false
     @AppStorage(Prefs.Key.focusMode) private var focusMode = FocusController.doNotDisturb
     @AppStorage(Prefs.Key.musicEnabled) private var musicEnabled = true
     @AppStorage(Prefs.Key.musicSource) private var musicSource = MusicController.Source.spotify.rawValue
@@ -86,13 +87,19 @@ struct SettingsView: View {
                         }
                     }
                 }
+                Toggle("Hide desktop icons", isOn: $hideDesktopIcons)
             } header: {
                 Text("During Focus")
             } footer: {
-                if effectsEnabled {
-                    Text("Only the Focus the timer turned on is switched off afterwards; one you set yourself is left alone.")
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    if effectsEnabled {
+                        Text("Only the Focus the timer turned on is switched off afterwards; one you set yourself is left alone.")
+                    }
+                    if hideDesktopIcons {
+                        Text("Hiding and showing the icons restarts Finder; its open windows come back on their own.")
+                    }
                 }
+                .foregroundStyle(.secondary)
             }
 
             Section {
