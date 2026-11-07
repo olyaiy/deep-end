@@ -64,16 +64,14 @@ struct SessionPlan: Equatable {
 
 struct SessionBar: View {
     let plan: SessionPlan
-    var tint: Color = Theme.red
     var height: CGFloat = 4
 
     @StateObject private var hover: HoveredSegment
     private let gap: CGFloat = 3
 
     /// `hovering` pre-selects a segment (for design previews).
-    init(plan: SessionPlan, tint: Color = Theme.red, height: CGFloat = 4, hovering: Int? = nil) {
+    init(plan: SessionPlan, height: CGFloat = 4, hovering: Int? = nil) {
         self.plan = plan
-        self.tint = tint
         self.height = height
         let state = HoveredSegment()
         state.index = hovering
@@ -132,20 +130,11 @@ struct SessionBar: View {
 
     @ViewBuilder
     private func segmentView(_ segment: SessionPlan.Segment) -> some View {
+        // Only finished sessions are red; everything still to come is the same grey.
         switch segment.kind {
-        case .done(let completed):
-            Capsule().fill(Theme.redGradient).opacity(completed ? 1 : 0.55)
-        case .current(let progress):
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(tint.opacity(0.22))
-                    Capsule().fill(Theme.redGradient)
-                        .frame(width: progress > 0 ? max(height, geo.size.width * progress) : 0)
-                }
-            }
-        case .next:
-            Capsule().fill(tint.opacity(0.22))
-        case .planned:
+        case .done:
+            Capsule().fill(Theme.redGradient)
+        case .current, .next, .planned:
             Capsule().fill(Theme.track)
         }
     }
