@@ -26,21 +26,21 @@ final class TimerModel: ObservableObject {
     /// The running instance, for URL-scheme commands handled by the app delegate.
     static weak var live: TimerModel?
 
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle { didSet { schedulePersist() } }
     @Published private(set) var now = Date()
     @Published private(set) var today = DailyStats.load()
     @Published private(set) var week = DailyStats.lastSevenDays()
     /// Completed work sessions since the last long break.
-    @Published private(set) var cycleCount = 0
+    @Published private(set) var cycleCount = 0 { didSet { schedulePersist() } }
 
     // The timer stores an end date rather than counting ticks, so it stays
     // accurate across sleep/wake and doesn't drift.
-    @Published private(set) var endDate: Date?
-    @Published private(set) var pausedRemaining: TimeInterval?
-    @Published private(set) var phaseDuration: TimeInterval = 1
+    @Published private(set) var endDate: Date? { didSet { schedulePersist() } }
+    @Published private(set) var pausedRemaining: TimeInterval? { didSet { schedulePersist() } }
+    @Published private(set) var phaseDuration: TimeInterval = 1 { didSet { schedulePersist() } }
     /// A break that's earned but not started. Breaks wait for you rather than
     /// starting on their own.
-    @Published private(set) var pendingBreak: Phase?
+    @Published private(set) var pendingBreak: Phase? { didSet { schedulePersist() } }
 
     @Published var intention = UserDefaults.standard.string(forKey: "lastIntention") ?? "" {
         didSet { UserDefaults.standard.set(intention, forKey: "lastIntention") }
@@ -48,7 +48,8 @@ final class TimerModel: ObservableObject {
 
     var onTransition: ((Transition) -> Void)?
 
-    private var workStartedAt: Date?
+    private var workStartedAt: Date? { didSet { schedulePersist() } }
+    private var persistScheduled = false
     private var ticker: Task<Void, Never>?
     /// Preview models (for design snapshots) must never touch the real Focus or wallpaper.
     private let isLive: Bool
@@ -196,13 +197,14 @@ final class TimerModel: ObservableObject {
         }
     }
 
-    private func finishPhase(completed: Bool) {
+    /// `announce: false` ends it quietly (one that ran out while the app wasn't running).
+    private func finishPhase(completed: Bool, announce: Bool = true) {
         switch phase {
         case .idle:
             return
 
         case .work:
-            recordFocusTime(completed: completed)
+            recordFocusTime(completed: completed, endedAt: min(Date(), endDate ?? Date()))
             if isLive { SessionEffects.shared.revert() }
             if completed { cycleCount += 1 }
             let long = cycleCount >= Prefs.sessionsPerLongBreak
@@ -210,21 +212,21 @@ final class TimerModel: ObservableObject {
             let minutes = long ? Prefs.longBreakMinutes : Prefs.shortBreakMinutes
             reset()
             pendingBreak = long ? .longBreak : .shortBreak
-            if completed {
+            if completed && announce {
                 playSound("Glass")
                 onTransition?(.workDone(breakMinutes: minutes, longBreak: long))
             }
 
         case .shortBreak, .longBreak:
             reset()
-            if completed {
+            if completed && announce {
                 playSound("Hero")
                 onTransition?(.breakDone(nextSession: sessionNumber))
             }
         }
     }
 
-    private func recordFocusTime(completed: Bool) {
+    private func recordFocusTime(completed: Bool, endedAt: Date = Date()) {
         guard workStartedAt != nil else { return }
         // Planned minus remaining excludes paused time.
         let elapsed = max(0, phaseDuration - remaining)
@@ -232,9 +234,69 @@ final class TimerModel: ObservableObject {
         guard elapsed >= 60 else { return }
         today.focusSeconds += elapsed
         if completed { today.sessions += 1 }
-        today.entries.append(.init(intention: intention, seconds: elapsed, endedAt: Date(), completed: completed))
+        today.entries.append(.init(intention: intention, seconds: elapsed, endedAt: endedAt, completed: completed))
         today.save()
         week = DailyStats.lastSevenDays()
+    }
+
+    // MARK: Surviving a restart
+
+    /// What's needed to pick a session back up in a new process: after an
+    /// update swaps in a new build (see Relaunch), or after a crash. Saved on
+    /// every change; the countdown itself is just an end date, so nothing drifts.
+    private struct Snapshot: Codable {
+        var phase: String
+        var endDate: Date?
+        var pausedRemaining: TimeInterval?
+        var phaseDuration: TimeInterval
+        var cycleCount: Int
+        var pendingBreak: String?
+        var workStartedAt: Date?
+    }
+
+    private static let snapshotKey = "timer.snapshot"
+
+    private func schedulePersist() {
+        guard isLive, !persistScheduled else { return }
+        persistScheduled = true
+        // Several properties change together; save once they've all landed.
+        Task { @MainActor [weak self] in self?.persist() }
+    }
+
+    /// Saves the timer now. Call before the process exits.
+    func persist() {
+        persistScheduled = false
+        guard isLive else { return }
+        let snapshot = Snapshot(phase: phase.rawValue, endDate: endDate, pausedRemaining: pausedRemaining,
+                                phaseDuration: phaseDuration, cycleCount: cycleCount,
+                                pendingBreak: pendingBreak?.rawValue, workStartedAt: workStartedAt)
+        if let data = try? JSONEncoder().encode(snapshot) {
+            UserDefaults.standard.set(data, forKey: Self.snapshotKey)
+        }
+    }
+
+    /// Picks up where the previous run left off. Returns true if a focus
+    /// session is still running, so its blocking and Focus should stay on.
+    func restoreSession() -> Bool {
+        guard isLive, let data = UserDefaults.standard.data(forKey: Self.snapshotKey),
+              let saved = try? JSONDecoder().decode(Snapshot.self, from: data),
+              let savedPhase = Phase(rawValue: saved.phase) else { return false }
+        cycleCount = saved.cycleCount
+        pendingBreak = saved.pendingBreak.flatMap(Phase.init(rawValue:))
+        guard savedPhase != .idle else { return false }
+
+        phase = savedPhase
+        phaseDuration = saved.phaseDuration
+        endDate = saved.endDate
+        pausedRemaining = saved.pausedRemaining
+        workStartedAt = saved.workStartedAt
+        now = Date()
+        if let endDate, now >= endDate {
+            // It ran out while the app wasn't running. Only announce it if that was moments ago.
+            finishPhase(completed: true, announce: now.timeIntervalSince(endDate) < 600)
+            return false
+        }
+        return phase == .work
     }
 
     private func reloadStats() {

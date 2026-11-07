@@ -14,6 +14,7 @@ rm -rf "$OUT"
 mkdir -p "$OUT/Contents/MacOS" "$OUT/Contents/Resources"
 cp .build/release/DeepWorkTimer "$OUT/Contents/MacOS/DeepWorkTimer"
 cp Resources/Info.plist "$OUT/Contents/Info.plist"
+[[ -f Resources/AppIcon.icns ]] && cp Resources/AppIcon.icns "$OUT/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$OUT" >/dev/null
 
 echo "Built $OUT"
@@ -34,16 +35,47 @@ codesign --force --sign - "$HELPER_OUT" >/dev/null
 
 if [[ "${1:-}" == "--no-install" ]]; then exit 0; fi
 
-pkill -x DeepWorkTimer 2>/dev/null && sleep 1 || true
+INSTALLED="$HOME/Applications/$APP"
+EXECUTABLE="$INSTALLED/Contents/MacOS/DeepWorkTimer"
+running_pid() { pgrep -f "^$EXECUTABLE" | head -1 || true; }
+OLD_PID=$(running_pid)
+
+# Swap the new bundle in. A running copy carries on with the old code until it relaunches.
 mkdir -p "$HOME/Applications"
-rm -rf "$HOME/Applications/$APP"
+rm -rf "$INSTALLED.new"
+ditto "$OUT" "$INSTALLED.new"
+rm -rf "$INSTALLED"
+mv "$INSTALLED.new" "$INSTALLED"
 # The app was called Deep Work Timer before; remove that copy so only one runs.
 rm -rf "$HOME/Applications/Deep Work Timer.app"
-ditto "$OUT" "$HOME/Applications/$APP"
+
 if ! cmp -s "$HELPER_OUT/Contents/Resources/build-id" "$HOME/Applications/$HELPER/Contents/Resources/build-id"; then
   rm -rf "$HOME/Applications/$HELPER"
   ditto "$HELPER_OUT" "$HOME/Applications/$HELPER"
   echo "Installed ~/Applications/$HELPER (grant it Full Disk Access in System Settings if asked)"
 fi
-open "$HOME/Applications/$APP"
-echo "Installed and launched ~/Applications/$APP"
+
+if [[ -z "$OLD_PID" ]]; then
+  open "$INSTALLED"
+  echo "Installed and launched $INSTALLED"
+  exit 0
+fi
+
+# Hand the running session over to the new build: the app saves its timer,
+# quits without undoing blocking or Focus, and reopens itself (see Relaunch.swift).
+open -g "deepwork://relaunch"
+for _ in $(seq 50); do
+  NEW_PID=$(running_pid)
+  [[ -n "$NEW_PID" && "$NEW_PID" != "$OLD_PID" ]] && break
+  sleep 0.2
+done
+if [[ -n "$NEW_PID" && "$NEW_PID" != "$OLD_PID" ]]; then
+  echo "Updated $INSTALLED in place; a running session carries on"
+  exit 0
+fi
+
+# Builds from before the handover existed don't understand it: restart the old way.
+echo "The running app didn't hand over; restarting it (a running session ends)"
+kill "$OLD_PID" 2>/dev/null || true
+sleep 1
+open "$INSTALLED"

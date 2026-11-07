@@ -45,7 +45,11 @@ final class MusicController: ObservableObject {
     private let scriptQueue = DispatchQueue(label: "DeepWorkTimer.music")
     private var poller: Timer?
     /// Set when a session started music, so ending it only pauses what we played.
-    private var playingForSession = false
+    /// Kept in UserDefaults so it survives an update mid-session.
+    private var playingForSession: Bool {
+        get { UserDefaults.standard.bool(forKey: "music.playingForSession") }
+        set { UserDefaults.standard.set(newValue, forKey: "music.playingForSession") }
+    }
 
     // MARK: Controls
 

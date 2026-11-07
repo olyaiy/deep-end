@@ -40,9 +40,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.menuBar = menuBar
             // Sets up the Focus helper's LaunchAgent and checks it has access.
             FocusController.shared.refresh()
-            // Clean up after a crash or kill mid-session. This runs after launch
-            // finishes, once macOS has reported the connected displays.
-            SessionEffects.shared.revert()
+            // Carry on a session from before an update (or a crash); otherwise
+            // clean up anything left on. This runs after launch finishes, once
+            // macOS has reported the connected displays.
+            if timer.restoreSession() {
+                SessionEffects.shared.resume()
+            } else {
+                SessionEffects.shared.revert()
+            }
         }
 
         // A display that was unplugged mid-session gets its wallpaper back when it returns.
@@ -58,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         signal(SIGTERM, SIG_IGN)
         let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
         source.setEventHandler {
-            MainActor.assumeIsolated { SessionEffects.shared.revert() }
+            MainActor.assumeIsolated { Self.endSession() }
             exit(0)
         }
         source.resume()
@@ -83,9 +88,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // Never leave the Focus or wallpaper stuck on if the app quits mid-session.
         guard !DesignPreview.previewRequested else { return }
-        MainActor.assumeIsolated {
-            SessionEffects.shared.revert()
-        }
+        MainActor.assumeIsolated { Self.endSession() }
+    }
+
+    /// Quitting ends a session (an update hands it over instead; see Relaunch).
+    @MainActor
+    private static func endSession() {
+        TimerModel.live?.stop()
+        TimerModel.live?.persist()
+        SessionEffects.shared.revert()
     }
 }
 
@@ -120,6 +131,7 @@ enum URLCommands {
         case "add": timer.adjust(minutes: minutes ?? 5)
         case "subtract": timer.adjust(minutes: -(minutes ?? 5))
         case "open": MenuBarController.shared?.show()
+        case "relaunch": Relaunch.now()
         default: break
         }
     }

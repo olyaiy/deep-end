@@ -126,6 +126,11 @@ That builds **Deep End.app**, installs it to `~/Applications` and launches it. A
 in the menu bar. Run `./build.sh` again after pulling changes; `./build.sh --no-install` only builds
 into `./build`.
 
+Updating never interrupts a session. The running app saves its timer, quits without undoing
+blocking or Focus, and reopens as the new version, which carries on the countdown from where it
+was. The menu bar icon blinks for a second; that's all. The same saved state means a crash
+mid-session picks back up on the next launch too.
+
 ### One-time setup
 
 Each of these is optional. Deep End works without them and tells you in Settings what's missing.

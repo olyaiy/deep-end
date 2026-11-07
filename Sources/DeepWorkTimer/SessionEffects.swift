@@ -55,6 +55,14 @@ final class SessionEffects {
         FocusController.shared.turnOn()
     }
 
+    /// After the app restarts mid-session (an update, or a crash). The Focus
+    /// and wallpaper are still in place; the blocking is re-applied in case
+    /// the site list changed.
+    func resume() {
+        SiteBlocker.shared.apply()
+        if Prefs.hideDesktopIcons { DesktopIcons.hide() }
+    }
+
     func revert() {
         SiteBlocker.shared.clear()
         MusicController.shared.sessionEnded()

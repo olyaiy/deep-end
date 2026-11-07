@@ -8,6 +8,8 @@
     <string>Deep End</string>
     <key>CFBundleDisplayName</key>
     <string>Deep End</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleExecutable</key>
     <string>DeepWorkTimer</string>
     <key>CFBundlePackageType</key>
