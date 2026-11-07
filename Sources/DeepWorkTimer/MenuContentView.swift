@@ -251,8 +251,11 @@ struct MenuContentView: View {
             Text(title)
                 .font(.system(size: 19, weight: .bold))
                 .lineLimit(1)
+                // Long task names shrink to fit before they're cut off.
+                .minimumScaleFactor(0.6)
                 .truncationMode(.tail)
                 .contentTransition(.opacity)
+                .help(title)
             if let subtitle {
                 Text(subtitle)
                     .font(.system(size: 12))
