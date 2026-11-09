@@ -21,6 +21,7 @@ enum Main {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var terminationSignal: DispatchSourceSignal?
+    private var relaunchSignal: DispatchSourceSignal?
     private var timer: TimerModel?
     private var menuBar: MenuBarController?
 
@@ -31,6 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 DesignPreview.showWindow()
                 return
             }
+            // Only one copy runs a session. A second one (opened twice, or by a
+            // link while the app restarts) leaves without touching anything:
+            // exit() skips the cleanup that would end the other copy's session.
+            if Self.anotherCopyIsRunning { exit(0) }
             Appearance.apply()
             let timer = TimerModel()
             let menuBar = MenuBarController(timer: timer)
@@ -48,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 SessionEffects.shared.revert()
             }
+            SessionEffects.shared.watchSettings()
         }
 
         // A display that was unplugged mid-session gets its wallpaper back when it returns.
@@ -68,6 +74,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         source.resume()
         terminationSignal = source
+
+        // SIGUSR1 is build.sh asking to swap in a new build (see Relaunch).
+        signal(SIGUSR1, SIG_IGN)
+        let relaunch = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
+        relaunch.setEventHandler { MainActor.assumeIsolated { Relaunch.now() } }
+        relaunch.resume()
+        relaunchSignal = relaunch
+    }
+
+    private static var anotherCopyIsRunning: Bool {
+        guard let id = Bundle.main.bundleIdentifier else { return false }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            .contains { $0.processIdentifier != getpid() }
     }
 
     // Take URL events directly (application(_:open:) isn't reliably called for

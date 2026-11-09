@@ -63,19 +63,30 @@ fi
 
 # Hand the running session over to the new build: the app saves its timer,
 # quits without undoing blocking or Focus, and reopens itself (see Relaunch.swift).
-open -g "deepwork://relaunch"
+# A signal reaches exactly that process; a deepwork:// link could start a second copy.
+kill -USR1 "$OLD_PID" 2>/dev/null || true
+NEW_PID=""
 for _ in $(seq 50); do
-  NEW_PID=$(running_pid)
-  [[ -n "$NEW_PID" && "$NEW_PID" != "$OLD_PID" ]] && break
+  if ! kill -0 "$OLD_PID" 2>/dev/null; then
+    NEW_PID=$(running_pid)
+    [[ -n "$NEW_PID" ]] && break
+  fi
   sleep 0.2
 done
-if [[ -n "$NEW_PID" && "$NEW_PID" != "$OLD_PID" ]]; then
+if [[ -n "$NEW_PID" ]]; then
   echo "Updated $INSTALLED in place; a running session carries on"
   exit 0
 fi
 
-# Builds from before the handover existed don't understand it: restart the old way.
-echo "The running app didn't hand over; restarting it (a running session ends)"
+if ! kill -0 "$OLD_PID" 2>/dev/null; then
+  # It quit but didn't reopen (a build from before the signal existed). The timer
+  # is saved on every change, so opening it again carries the session on.
+  open "$INSTALLED"
+  echo "Updated $INSTALLED; reopened it and the session carries on"
+  exit 0
+fi
+
+echo "The running app didn't respond; restarting it (a running session ends)"
 kill "$OLD_PID" 2>/dev/null || true
 sleep 1
 open "$INSTALLED"

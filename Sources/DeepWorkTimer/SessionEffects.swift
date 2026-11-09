@@ -34,25 +34,85 @@ final class SessionEffects {
         SiteBlocker.shared.apply()
         MusicController.shared.sessionStarted()
         if Prefs.hideDesktopIcons { DesktopIcons.hide() }
-        guard Prefs.effectsEnabled, !defaults.bool(forKey: activeKey) else { return }
-        defaults.set(true, forKey: activeKey)
+        if Prefs.effectsEnabled { applyFocusAndWallpaper() }
+    }
 
-        if let wallpaper = Prefs.wallpaperURL ?? DefaultWallpaper.url() {
-            var originals = saved
-            for screen in NSScreen.screens {
-                guard let id = screen.displayID else { continue }
-                if originals[id] == nil, let original = originalWallpaper(for: screen, id: id) {
-                    originals[id] = original
-                }
-                // Without a known original we couldn't put it back, so leave it alone.
-                guard originals[id] != nil else { continue }
-                // Save before changing anything, so a crash right here is still recoverable.
-                saved = originals
-                setWallpaper(wallpaper, for: screen)
+    private func applyFocusAndWallpaper() {
+        guard !defaults.bool(forKey: activeKey) else { return }
+        defaults.set(true, forKey: activeKey)
+        showSessionWallpaper()
+        FocusController.shared.turnOn()
+    }
+
+    private func revertFocusAndWallpaper() {
+        let wasActive = defaults.bool(forKey: activeKey)
+        restoreWallpapers()
+        defaults.set(false, forKey: activeKey)
+        if wasActive { FocusController.shared.turnOff() }
+    }
+
+    private func showSessionWallpaper() {
+        guard let wallpaper = Prefs.wallpaperURL ?? DefaultWallpaper.url() else { return }
+        var originals = saved
+        for screen in NSScreen.screens {
+            guard let id = screen.displayID else { continue }
+            if originals[id] == nil, let original = originalWallpaper(for: screen, id: id) {
+                originals[id] = original
+            }
+            // Without a known original we couldn't put it back, so leave it alone.
+            guard originals[id] != nil else { continue }
+            // Save before changing anything, so a crash right here is still recoverable.
+            saved = originals
+            setWallpaper(wallpaper, for: screen)
+        }
+    }
+
+    // MARK: Changing settings mid-session
+
+    /// The settings that shape a running session.
+    private struct LiveSettings: Equatable {
+        var effects = Prefs.effectsEnabled
+        var hideIcons = Prefs.hideDesktopIcons
+        var focusMode = Prefs.focusMode
+        var wallpaper = Prefs.wallpaperURL
+        var shortBreak = Prefs.shortBreakMinutes
+        var longBreak = Prefs.longBreakMinutes
+    }
+
+    private var lastSettings = LiveSettings()
+
+    /// Settings changed while a session runs take effect straight away,
+    /// rather than at the next one. (Blocked sites already do; see SiteBlocker.)
+    func watchSettings() {
+        lastSettings = LiveSettings()
+        NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { SessionEffects.shared.settingsChanged() }
+        }
+    }
+
+    private func settingsChanged() {
+        let new = LiveSettings(), old = lastSettings
+        guard new != old else { return }
+        lastSettings = new
+        guard let timer = TimerModel.live else { return }
+
+        if timer.phase == .work {
+            if new.effects != old.effects {
+                new.effects ? applyFocusAndWallpaper() : revertFocusAndWallpaper()
+            } else if new.effects, defaults.bool(forKey: activeKey) {
+                // The helper replaces the Focus it turned on with the new one.
+                if new.focusMode != old.focusMode { FocusController.shared.turnOn() }
+                if new.wallpaper != old.wallpaper { showSessionWallpaper() }
+            }
+            if new.hideIcons != old.hideIcons {
+                new.hideIcons ? DesktopIcons.hide() : DesktopIcons.restore()
             }
         }
-
-        FocusController.shared.turnOn()
+        if timer.phase == .shortBreak, new.shortBreak != old.shortBreak {
+            timer.setPhaseLength(minutes: new.shortBreak)
+        } else if timer.phase == .longBreak, new.longBreak != old.longBreak {
+            timer.setPhaseLength(minutes: new.longBreak)
+        }
     }
 
     /// After the app restarts mid-session (an update, or a crash). The Focus
@@ -67,10 +127,7 @@ final class SessionEffects {
         SiteBlocker.shared.clear()
         MusicController.shared.sessionEnded()
         DesktopIcons.restore()
-        let wasActive = defaults.bool(forKey: activeKey)
-        restoreWallpapers()
-        defaults.set(false, forKey: activeKey)
-        if wasActive { FocusController.shared.turnOff() }
+        revertFocusAndWallpaper()
     }
 
     /// Put back any saved originals for the screens connected right now.

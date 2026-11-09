@@ -1,8 +1,8 @@
 import AppKit
 
 /// Restarts the app into whatever build is installed, without interrupting a
-/// session. build.sh swaps the new bundle in, then opens deepwork://relaunch:
-/// this saves the timer, quits without undoing anything (sites stay blocked,
+/// session. build.sh swaps the new bundle in, then sends SIGUSR1 (or open
+/// deepwork://relaunch by hand): this saves the timer, quits without undoing anything (sites stay blocked,
 /// Focus stays on), and reopens the app, which picks the session back up from
 /// the saved end date (TimerModel.restoreSession).
 @MainActor

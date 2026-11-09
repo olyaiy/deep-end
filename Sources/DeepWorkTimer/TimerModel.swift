@@ -123,6 +123,11 @@ final class TimerModel: ObservableObject {
         adjust(by: TimeInterval(minutes * 60))
     }
 
+    /// Change how long the running phase is in total, keeping the time already spent.
+    func setPhaseLength(minutes: Int) {
+        adjust(by: TimeInterval(minutes * 60) - phaseDuration)
+    }
+
     /// Set the time left in the running phase (dragging the dial).
     func setRemaining(_ seconds: TimeInterval) {
         adjust(by: seconds - remaining)
