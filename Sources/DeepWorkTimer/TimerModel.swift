@@ -40,7 +40,32 @@ final class TimerModel: ObservableObject {
     @Published private(set) var phaseDuration: TimeInterval = 1 { didSet { schedulePersist() } }
     /// A break that's earned but not started. Breaks wait for you rather than
     /// starting on their own.
-    @Published private(set) var pendingBreak: Phase? { didSet { schedulePersist() } }
+    @Published private(set) var pendingBreak: Phase? {
+        didSet {
+            if pendingBreak == nil {
+                pendingBreakSince = nil
+                lastFinished = nil
+            } else if oldValue == nil {
+                pendingBreakSince = Date()
+            }
+            schedulePersist()
+        }
+    }
+    /// When the break was offered. Unclaimed, the offer lapses once the break
+    /// would have been over: stepping away that long was the break.
+    private var pendingBreakSince: Date? { didSet { schedulePersist() } }
+
+    /// The session that just ended, so "+10" can carry it on as one longer
+    /// session instead of starting a second one.
+    private struct FinishedSession: Codable {
+        var elapsed: TimeInterval
+        var startedAt: Date?
+        var cycleBefore: Int
+        var recorded: Bool
+        var completed: Bool
+        var day: String
+    }
+    private var lastFinished: FinishedSession? { didSet { schedulePersist() } }
 
     @Published var intention = UserDefaults.standard.string(forKey: "lastIntention") ?? "" {
         didSet { UserDefaults.standard.set(intention, forKey: "lastIntention") }
@@ -153,6 +178,31 @@ final class TimerModel: ObservableObject {
         startBreak()
     }
 
+    /// "+10" once a session has ended: it carries on (blocking and all) and is
+    /// recorded as one longer session.
+    var canContinueSession: Bool { phase == .idle && lastFinished != nil }
+
+    func continueSession(minutes: Int = 10) {
+        guard phase == .idle, let last = lastFinished else { return }
+        if last.recorded, last.day == today.day, !today.entries.isEmpty {
+            today.entries.removeLast()
+            today.focusSeconds = max(0, today.focusSeconds - last.elapsed)
+            if last.completed { today.sessions = max(0, today.sessions - 1) }
+            today.save()
+            week = DailyStats.lastSevenDays()
+        }
+        let extra = TimeInterval(minutes * 60)
+        cycleCount = last.cycleBefore
+        pendingBreak = nil
+        workStartedAt = last.startedAt ?? Date()
+        phase = .work
+        phaseDuration = last.elapsed + extra
+        endDate = Date().addingTimeInterval(extra)
+        pausedRemaining = nil
+        now = Date()
+        if isLive { SessionEffects.shared.apply(continuing: true) }
+    }
+
     func startBreak() {
         guard let next = pendingBreak else { return }
         pendingBreak = nil
@@ -196,7 +246,14 @@ final class TimerModel: ObservableObject {
 
     private func tick() {
         now = Date()
-        if today.day != DailyStats.todayKey { reloadStats() }
+        if today.day != DailyStats.todayKey {
+            reloadStats()
+            pendingBreak = nil
+        }
+        if pendingBreak != nil, let pendingBreakSince,
+           now.timeIntervalSince(pendingBreakSince) >= TimeInterval(pendingBreakMinutes() * 60) {
+            pendingBreak = nil
+        }
         if let endDate, now >= endDate {
             finishPhase(completed: true)
         }
@@ -209,7 +266,10 @@ final class TimerModel: ObservableObject {
             return
 
         case .work:
-            recordFocusTime(completed: completed, endedAt: min(Date(), endDate ?? Date()))
+            let cycleBefore = cycleCount
+            let startedAt = workStartedAt
+            let elapsed = max(0, phaseDuration - remaining)
+            let recorded = recordFocusTime(completed: completed, endedAt: min(Date(), endDate ?? Date()))
             if isLive { SessionEffects.shared.revert() }
             if completed { cycleCount += 1 }
             let long = cycleCount >= Prefs.sessionsPerLongBreak
@@ -217,6 +277,8 @@ final class TimerModel: ObservableObject {
             let minutes = long ? Prefs.longBreakMinutes : Prefs.shortBreakMinutes
             reset()
             pendingBreak = long ? .longBreak : .shortBreak
+            lastFinished = FinishedSession(elapsed: elapsed, startedAt: startedAt, cycleBefore: cycleBefore,
+                                           recorded: recorded, completed: completed, day: today.day)
             if completed && announce {
                 playSound("Glass")
                 onTransition?(.workDone(breakMinutes: minutes, longBreak: long))
@@ -231,17 +293,20 @@ final class TimerModel: ObservableObject {
         }
     }
 
-    private func recordFocusTime(completed: Bool, endedAt: Date = Date()) {
-        guard workStartedAt != nil else { return }
+    /// Returns whether it was long enough to be recorded.
+    @discardableResult
+    private func recordFocusTime(completed: Bool, endedAt: Date = Date()) -> Bool {
+        guard workStartedAt != nil else { return false }
         // Planned minus remaining excludes paused time.
         let elapsed = max(0, phaseDuration - remaining)
         workStartedAt = nil
-        guard elapsed >= 60 else { return }
+        guard elapsed >= 60 else { return false }
         today.focusSeconds += elapsed
         if completed { today.sessions += 1 }
         today.entries.append(.init(intention: intention, seconds: elapsed, endedAt: endedAt, completed: completed))
         today.save()
         week = DailyStats.lastSevenDays()
+        return true
     }
 
     // MARK: Surviving a restart
@@ -257,6 +322,8 @@ final class TimerModel: ObservableObject {
         var cycleCount: Int
         var pendingBreak: String?
         var workStartedAt: Date?
+        var pendingBreakSince: Date?
+        var lastFinished: FinishedSession?
     }
 
     private static let snapshotKey = "timer.snapshot"
@@ -274,7 +341,8 @@ final class TimerModel: ObservableObject {
         guard isLive else { return }
         let snapshot = Snapshot(phase: phase.rawValue, endDate: endDate, pausedRemaining: pausedRemaining,
                                 phaseDuration: phaseDuration, cycleCount: cycleCount,
-                                pendingBreak: pendingBreak?.rawValue, workStartedAt: workStartedAt)
+                                pendingBreak: pendingBreak?.rawValue, workStartedAt: workStartedAt,
+                                pendingBreakSince: pendingBreakSince, lastFinished: lastFinished)
         if let data = try? JSONEncoder().encode(snapshot) {
             UserDefaults.standard.set(data, forKey: Self.snapshotKey)
         }
@@ -288,6 +356,11 @@ final class TimerModel: ObservableObject {
               let savedPhase = Phase(rawValue: saved.phase) else { return false }
         cycleCount = saved.cycleCount
         pendingBreak = saved.pendingBreak.flatMap(Phase.init(rawValue:))
+        if pendingBreak != nil {
+            // Saved by a build without it: the offer runs from now.
+            if let since = saved.pendingBreakSince { pendingBreakSince = since }
+            lastFinished = saved.lastFinished
+        }
         guard savedPhase != .idle else { return false }
 
         phase = savedPhase
@@ -322,6 +395,10 @@ final class TimerModel: ObservableObject {
     ) -> TimerModel {
         let model = TimerModel(live: false)
         model.pendingBreak = pendingBreak
+        if pendingBreak != nil {
+            model.lastFinished = FinishedSession(elapsed: total, startedAt: nil, cycleBefore: cycle,
+                                                 recorded: false, completed: true, day: today.day)
+        }
         model.phase = phase
         model.phaseDuration = total
         model.cycleCount = cycle

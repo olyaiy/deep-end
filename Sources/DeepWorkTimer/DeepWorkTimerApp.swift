@@ -147,7 +147,8 @@ enum URLCommands {
         case "resume": timer.resume()
         case "stop": timer.stop()
         case "skip": timer.skip()
-        case "add": timer.adjust(minutes: minutes ?? 5)
+        case "add":
+            timer.canContinueSession ? timer.continueSession(minutes: minutes ?? 10) : timer.adjust(minutes: minutes ?? 5)
         case "subtract": timer.adjust(minutes: -(minutes ?? 5))
         case "open": MenuBarController.shared?.show()
         case "relaunch": Relaunch.now()

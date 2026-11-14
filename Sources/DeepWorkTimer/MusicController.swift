@@ -78,8 +78,11 @@ final class MusicController: ObservableObject {
 
     // MARK: Session hooks
 
-    func sessionStarted() {
-        switch Prefs.musicOnStart {
+    /// `continuing`: carrying on a session that just ended, so pick the music
+    /// back up rather than starting the playlist over.
+    func sessionStarted(continuing: Bool = false) {
+        let choice = continuing && Prefs.musicOnStart == .playlist ? .resume : Prefs.musicOnStart
+        switch choice {
         case .nothing: return
         case .resume:
             usesSpotify ? playSpotify(uri: nil) : SystemMedia.send(.play)

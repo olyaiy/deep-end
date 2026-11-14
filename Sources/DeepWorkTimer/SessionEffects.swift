@@ -30,9 +30,10 @@ final class SessionEffects {
         set { newValue.isEmpty ? defaults.removeObject(forKey: savedWallpapersKey) : defaults.set(newValue, forKey: savedWallpapersKey) }
     }
 
-    func apply() {
+    /// `continuing`: a session that just ended is carrying on ("+10").
+    func apply(continuing: Bool = false) {
         SiteBlocker.shared.apply()
-        MusicController.shared.sessionStarted()
+        MusicController.shared.sessionStarted(continuing: continuing)
         if Prefs.hideDesktopIcons { DesktopIcons.hide() }
         if Prefs.effectsEnabled { applyFocusAndWallpaper() }
     }

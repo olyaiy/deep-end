@@ -583,6 +583,15 @@ struct MenuContentView: View {
                 .keyboardShortcut(timeEdit.editing ? nil : phase == .idle ? .defaultAction : phase == .work ? KeyboardShortcut(.space, modifiers: []) : nil)
                 .help(primaryHelp)
 
+                if phase == .work || timer.canContinueSession {
+                    GlassButton(height: 30, horizontalPadding: 12, glassID: "more", namespace: glass, action: addTenMinutes) {
+                        Text("+10").font(.system(size: 12.5, weight: .semibold)).monospacedDigit()
+                    }
+                    .accessibilityLabel("Add 10 minutes")
+                    .help(phase == .work ? "Add 10 minutes" : "Keep going for 10 more minutes")
+                    .transition(.opacity)
+                }
+
                 if phase != .idle {
                     GlassButton(shape: .circle, height: 30, glassID: "cancel", namespace: glass, action: { timer.stop() }) {
                         Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
@@ -593,9 +602,10 @@ struct MenuContentView: View {
                 }
 
                 if breakReady {
-                    GlassButton(height: 30, horizontalPadding: 14, glassID: "cancel", namespace: glass, action: { timer.skipBreak() }) {
-                        Text("Skip").font(.system(size: 12.5, weight: .semibold))
+                    GlassButton(shape: .circle, height: 30, glassID: "cancel", namespace: glass, action: { timer.skipBreak() }) {
+                        Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
                     }
+                    .accessibilityLabel("Skip break")
                     .help("Skip the break and get ready for the next session")
                 } else if phase == .idle {
                     blockButton
@@ -608,7 +618,7 @@ struct MenuContentView: View {
 
     private var primaryTitle: String {
         switch phase {
-        case .idle: breakReady ? "Start Break" : "Start"
+        case .idle: breakReady ? "Break" : "Start"
         case .work: timer.isPaused ? "Resume" : "Pause"
         case .shortBreak, .longBreak: "Skip"
         }
@@ -628,6 +638,10 @@ struct MenuContentView: View {
         case .work: "Pause or resume  Space"
         case .shortBreak, .longBreak: "Skip the rest of this break"
         }
+    }
+
+    private func addTenMinutes() {
+        phase == .work ? timer.adjust(minutes: 10) : timer.continueSession(minutes: 10)
     }
 
     private func primaryAction() {
