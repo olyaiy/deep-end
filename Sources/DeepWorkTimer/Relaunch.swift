@@ -7,13 +7,16 @@ import AppKit
 /// the saved end date (TimerModel.restoreSession).
 @MainActor
 enum Relaunch {
+    /// Tells the reopened app it was restarted, not opened by you.
+    static let argument = "--relaunched"
+
     static func now() {
         TimerModel.live?.persist()
         UserDefaults.standard.synchronize()
         // A detached helper waits for this process to exit, then opens the app again.
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", "while /bin/kill -0 \(getpid()) 2>/dev/null; do sleep 0.1; done; /usr/bin/open \"$0\"",
+        process.arguments = ["-c", "while /bin/kill -0 \(getpid()) 2>/dev/null; do sleep 0.1; done; /usr/bin/open \"$0\" --args \(argument)",
                              Bundle.main.bundlePath]
         try? process.run()
         // exit() skips applicationWillTerminate, so the session isn't ended.

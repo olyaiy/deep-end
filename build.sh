@@ -81,7 +81,7 @@ fi
 if ! kill -0 "$OLD_PID" 2>/dev/null; then
   # It quit but didn't reopen (a build from before the signal existed). The timer
   # is saved on every change, so opening it again carries the session on.
-  open "$INSTALLED"
+  open "$INSTALLED" --args --relaunched
   echo "Updated $INSTALLED; reopened it and the session carries on"
   exit 0
 fi

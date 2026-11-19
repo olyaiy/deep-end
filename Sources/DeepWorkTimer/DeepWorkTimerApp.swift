@@ -24,6 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var relaunchSignal: DispatchSourceSignal?
     private var timer: TimerModel?
     private var menuBar: MenuBarController?
+    /// Opened at login rather than by you.
+    private var launchedAtLogin = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         MainActor.assumeIsolated {
@@ -54,6 +56,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 SessionEffects.shared.revert()
             }
             SessionEffects.shared.watchSettings()
+
+            // Opening the app yourself shows its window, so it's clear where it
+            // went. Not at login, not when restarted for an update, and not when
+            // a deepwork:// link opened it.
+            let isDefault = notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool ?? true
+            if isDefault, !launchedAtLogin, !CommandLine.arguments.contains(Relaunch.argument) {
+                // Once the status item has a place in the menu bar to sit under.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak menuBar] in menuBar?.show() }
+            }
         }
 
         // A display that was unplugged mid-session gets its wallpaper back when it returns.
@@ -92,6 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Take URL events directly (application(_:open:) isn't reliably called for
     // a menu bar app with no windows).
     func applicationWillFinishLaunching(_ notification: Notification) {
+        let launch = NSAppleEventManager.shared().currentAppleEvent
+        launchedAtLogin = launch?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
         NSAppleEventManager.shared().setEventHandler(
             self, andSelector: #selector(handleURLEvent(_:reply:)),
             forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL)
@@ -102,6 +115,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let string = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
               let url = URL(string: string) else { return }
         MainActor.assumeIsolated { URLCommands.handle(url) }
+    }
+
+    /// Opening the app again while it runs (Spotlight, Finder, the Dock) shows its window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        MainActor.assumeIsolated { MenuBarController.shared?.show() }
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {

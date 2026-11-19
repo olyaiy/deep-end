@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/icon/icon-256.png" alt="Deep End app icon: tally marks growing into columns and a temple" width="128"></p>
+
 <h1 align="center">Deep End</h1>
 
 <p align="center"><b>A deep work timer for your Mac's menu bar.</b><br>
