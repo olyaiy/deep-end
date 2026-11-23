@@ -43,7 +43,7 @@ enum Prefs {
             Key.wallpaperPath: "",
             Key.playSound: true,
             Key.showTimeInMenuBar: true,
-            Key.appearance: Appearance.light.rawValue,
+            Key.appearance: Appearance.dark.rawValue,
         ])
     }
 
@@ -96,7 +96,7 @@ enum Appearance: String, CaseIterable {
     }
 
     static var current: Appearance {
-        Appearance(rawValue: UserDefaults.standard.string(forKey: Prefs.Key.appearance) ?? "") ?? .light
+        Appearance(rawValue: UserDefaults.standard.string(forKey: Prefs.Key.appearance) ?? "") ?? .dark
     }
 
     @MainActor

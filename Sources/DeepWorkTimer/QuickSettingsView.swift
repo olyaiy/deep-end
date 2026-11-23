@@ -3,7 +3,7 @@ import SwiftUI
 /// The small settings popover from the gear in the popover's corner: the
 /// things worth changing often. Everything else is in the full Settings window.
 struct QuickSettingsView: View {
-    @AppStorage(Prefs.Key.appearance) private var appearance = Appearance.light.rawValue
+    @AppStorage(Prefs.Key.appearance) private var appearance = Appearance.dark.rawValue
     @AppStorage(Prefs.Key.effectsEnabled) private var effectsEnabled = true
     @AppStorage(Prefs.Key.hideDesktopIcons) private var hideDesktopIcons = false
     @AppStorage(Prefs.Key.playSound) private var playSound = true
