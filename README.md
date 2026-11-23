@@ -46,7 +46,7 @@ actually got done. It lives in the menu bar, takes one click to start, and stays
 - **Work, then break**: 50 / 10 by default, with a 20-minute long break every few sessions.
   Breaks wait for you to start them instead of starting on their own.
 - When a session ends, **the window opens by itself** with a sound, without taking your keyboard.
-- **Light, dark or auto** appearance, with a light default that stays crisp over any wallpaper.
+- **Light, dark or auto** appearance, dark by default.
 
 ### Today, at a glance
 
